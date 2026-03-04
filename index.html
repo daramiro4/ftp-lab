@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FTP Lab v2 — Análisis de Potencia Ciclista</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@300;400;500&display=swap');
+
+:root {
+  --bg: #080810;
+  --s1: #0e0e1a;
+  --s2: #13131f;
+  --border: #1c1c2e;
+  --border2: #252538;
+  --accent: #00e5ff;
+  --accent2: #ff6b35;
+  --accent3: #a8ff3e;
+  --text: #dde0f0;
+  --muted: #4a4a6a;
+  --muted2: #6a6a8a;
+  --white: #f0f2ff;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-weight: 300;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;
+  z-index:9999;
+  opacity:.4;
+}
+
+/* ── LAYOUT ── */
+.app { display:flex; min-height:100vh; }
+
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--s1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 0;
+  position: fixed;
+  top: 0; left: 0;
+  height: 100vh;
+  z-index: 100;
+}
+
+.logo-wrap { padding: 0 24px 28px; border-bottom: 1px solid var(--border); }
+
+.logo {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 1.8rem;
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-shadow: 0 0 30px rgba(0,229,255,0.4);
+  line-height: 1;
+}
+
+.logo-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted2);
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+
+.nav { padding: 20px 0; flex: 1; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  cursor: pointer;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted2);
+  transition: all 0.2s;
+  border-left: 2px solid transparent;
+}
+
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,255,0.05); }
+.nav-icon { font-size: 1rem; min-width: 20px; }
+
+.sidebar-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.version-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* ── MAIN CONTENT ── */
+.main {
+  margin-left: 220px;
+  flex: 1;
+  padding: 40px;
+  max-width: calc(100vw - 220px);
+}
+
+/* ── PAGES ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── SECTION HEADER ── */
+.page-header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.page-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 2.8rem;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--white);
+  line-height: 1;
+}
+
+.page-title span { color: var(--accent); }
+
+.page-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted2);
+  letter-spacing: 1px;
+  margin-top: 6px;
+}
+
+/* ── UPLOAD ── */
+.upload-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 6px;
+  padding: 64px 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+  background: var(--s2);
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-zone::before {
+  content:'';
+  position:absolute;
+  inset:0;
+  background: radial-gradient(ellipse at 70% 30%, rgba(0,229,255,0.04) 0%, transparent 60%);
+}
+
+.upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(0,229,255,0.03); }
+
+.upload-icon { font-size:3.5rem; margin-bottom:16px; display:block; }
+
+.upload-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 2rem;
+  letter-spacing: 4px;
+  color: var(--white);
+  margin-bottom: 8px;
+}
+
+.upload-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--muted2);
+}
+
+.upload-hint strong { color: var(--accent); }
+
+#fileInput { display:none; }
+
+/* Weight input */
+.weight-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding: 20px 24px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.weight-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--muted2);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.weight-input {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  color: var(--white);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  letter-spacing: 2px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  width: 100px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.weight-input:focus { border-color: var(--accent); }
+
+.weight-unit {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--muted2);
+}
+
+.analyze-btn {
+  margin-left: auto;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 3px;
+  padding: 12px 28px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.analyze-btn:hover { background: #33eaff; transform: translateY(-1px); }
+.analyze-btn:disabled { background: var(--border2); color: var(--muted); cursor: not-allowed; transform: none; }
+
+/* Export guide */
+.guide-box {
+  margin-top: 20px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent3);
+  border-radius: 4px;
+  padding: 20px 24px;
+}
+
+.guide-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 2px;
+  color: var(--accent3);
+  margin-bottom: 14px;
+}
+
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.g-step { display:flex; gap:10px; align-items:flex-start; }
+.g-num {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 1.6rem;
+  color: var(--accent3);
+  line-height:1;
+  min-width:20px;
+}
+.g-text { font-size:0.78rem; color:var(--muted2); line-height:1.5; }
+.g-text strong { color: var(--text); }
+
+/* ── LOADING ── */
+#loading {
+  display:none;
+  text-align:center;
+  padding: 80px 40px;
+}
+
+.loader-ring {
+  width:60px; height:60px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius:50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.loader-text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size:0.75rem;
+  color: var(--muted2);
+  letter-spacing:3px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+
+/* ── CARDS ── */
+.card {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 24px;
+  transition: border-color 0.2s;
+}
+
+.card:hover { border-color: var(--border2); }
+
+.card-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 10px;
+}
+
+.card-value {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--white);
+}
+
+.card-unit {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted2);
+  margin-top: 6px;
+}
+
+/* ── FTP HERO ── */
+.ftp-hero {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 40px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 40px;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.ftp-hero::before {
+  content:'';
+  position:absolute;
+  top:-80px; left: 40%;
+  width:400px; height:400px;
+  background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 65%);
+  pointer-events:none;
+}
+
+.ftp-big {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 7rem;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 0 80px rgba(0,229,255,0.35);
+  letter-spacing: -2px;
+}
+
+.ftp-label-big {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 3px;
+  color: var(--muted2);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.ftp-unit-big {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--muted2);
+  margin-top: 4px;
+}
+
+.divider-v {
+  width: 1px;
+  height: 100px;
+  background: var(--border);
+}
+
+.ftp-right { display:flex; flex-direction:column; gap:12px; }
+
+.wkg-big {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 3.5rem;
+  line-height: 1;
+  color: var(--accent2);
+  text-shadow: 0 0 40px rgba(255,107,53,0.3);
+}
+
+.profile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 1px;
+  width: fit-content;
+}
+
+/* ── PROFILE TABLE ── */
+.profile-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+}
+
+.profile-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--muted2);
+  font-size: 0.62rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted2);
+}
+
+.profile-table tr.current-row td {
+  color: var(--white);
+  background: rgba(0,229,255,0.05);
+}
+
+.profile-table tr.current-row td:first-child {
+  border-left: 2px solid var(--accent);
+}
+
+.level-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+/* ── STATS GRID ── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+/* ── ZONES ── */
+.zones-wrap { display:flex; flex-direction:column; gap:10px; }
+
+.zone-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 50px;
+  align-items: center;
+  gap: 12px;
+}
+
+.zone-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted2);
+}
+
+.zone-bar-bg {
+  height: 18px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.zone-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+.zone-pct {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text);
+  text-align: right;
+}
+
+/* ── POWER CURVE ── */
+.curve-container {
+  position: relative;
+  height: 280px;
+  margin-top: 8px;
+}
+
+canvas { width:100% !important; }
+
+/* ── FTP HISTORY ── */
+.history-container {
+  position: relative;
+  height: 220px;
+  margin-bottom: 24px;
+}
+
+.history-table-wrap { overflow-x: auto; }
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+}
+
+.history-table th {
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--muted2);
+  font-size: 0.6rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.history-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.history-table tr:last-child td { border-bottom: none; }
+
+.trend-up { color: var(--accent3); }
+.trend-down { color: #ff4466; }
+.trend-flat { color: var(--muted2); }
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.delete-btn:hover { color: #ff4466; background: rgba(255,68,102,0.1); }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 40px;
+  color: var(--muted2);
+}
+
+.empty-icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  line-height: 1.8;
+}
+
+/* ── WORKOUTS ── */
+.workouts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.workout-card {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 24px;
+  transition: all 0.2s;
+}
+
+.workout-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+
+.w-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  padding: 3px 9px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.w-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 1.3rem;
+  letter-spacing: 2px;
+  color: var(--white);
+  margin-bottom: 8px;
+}
+
+.w-desc {
+  font-size: 0.8rem;
+  color: var(--muted2);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.w-pills { display:flex; flex-wrap:wrap; gap:6px; }
+
+.pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  padding: 4px 10px;
+  background: var(--border);
+  border-radius: 2px;
+  color: var(--text);
+}
+
+/* ── SECTION TITLE ── */
+.sec-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin: 32px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sec-title::after {
+  content:'';
+  flex:1;
+  height:1px;
+  background: var(--border);
+}
+
+/* ── GRID HELPERS ── */
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+@media (max-width: 900px) {
+  .sidebar { width:60px; min-width:60px; }
+  .logo-wrap .logo-sub, .nav-item span:not(.nav-icon) { display:none; }
+  .nav-item { padding:12px; justify-content:center; }
+  .logo { font-size:1rem; letter-spacing:1px; }
+  .main { margin-left:60px; padding:24px 16px; max-width:calc(100vw - 60px); }
+  .ftp-hero { grid-template-columns:1fr; }
+  .divider-v { display:none; }
+  .two-col, .three-col { grid-template-columns:1fr; }
+}
+
+/* Fade in animation */
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(16px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.fade-in { animation: fadeUp 0.4s ease forwards; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="logo-wrap">
+    <div class="logo">FTP LAB</div>
+    <div class="logo-sub">// v2.0</div>
+  </div>
+  <div class="nav">
+    <div class="nav-item active" onclick="showPage('upload')">
+      <span class="nav-icon">⚡</span><span>Analizar</span>
+    </div>
+    <div class="nav-item" onclick="showPage('dashboard')" id="navDash">
+      <span class="nav-icon">📊</span><span>Dashboard</span>
+    </div>
+    <div class="nav-item" onclick="showPage('curve')" id="navCurve">
+      <span class="nav-icon">📈</span><span>Curva Potencia</span>
+    </div>
+    <div class="nav-item" onclick="showPage('history')" id="navHistory">
+      <span class="nav-icon">🕓</span><span>Histórico FTP</span>
+    </div>
+    <div class="nav-item" onclick="showPage('workouts')" id="navWorkouts">
+      <span class="nav-icon">🎯</span><span>Workouts</span>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="version-tag">FTP LAB v2.0<br>© 2025 · Local-only</div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- PAGE: UPLOAD -->
+  <div class="page active" id="page-upload">
+    <div class="page-header">
+      <div>
+        <div class="page-title">CARGAR <span>DATOS</span></div>
+        <div class="page-sub">// Sube archivos .FIT de Garmin Connect</div>
+      </div>
+    </div>
+
+    <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <span class="upload-icon">⚡</span>
+      <div class="upload-title">SUBIR ARCHIVOS .FIT</div>
+      <p class="upload-hint">Arrastra aquí · o haz click · <strong>Varios archivos a la vez</strong></p>
+      <input type="file" id="fileInput" accept=".fit,.csv" multiple>
+    </div>
+
+    <div class="weight-row">
+      <span class="weight-label">// PESO CORPORAL</span>
+      <input type="number" class="weight-input" id="weightInput" value="70" min="40" max="150">
+      <span class="weight-unit">kg</span>
+      <button class="analyze-btn" id="analyzeBtn" disabled onclick="runAnalysis()">ANALIZAR →</button>
+    </div>
+
+    <div class="guide-box">
+      <div class="guide-title">// CÓMO EXPORTAR DESDE GARMIN CONNECT</div>
+      <div class="guide-steps">
+        <div class="g-step"><div class="g-num">1</div><div class="g-text">Ve a <strong>connect.garmin.com</strong> e inicia sesión</div></div>
+        <div class="g-step"><div class="g-num">2</div><div class="g-text">Abre cualquier <strong>actividad de ciclismo</strong></div></div>
+        <div class="g-step"><div class="g-num">3</div><div class="g-text">Click ⚙ → <strong>"Exportar Original"</strong> → descarga .FIT</div></div>
+        <div class="g-step"><div class="g-num">4</div><div class="g-text">Sube uno o <strong>varios archivos aquí</strong> juntos</div></div>
+      </div>
+    </div>
+
+    <div id="loading">
+      <div class="loader-ring"></div>
+      <div class="loader-text">PROCESANDO ARCHIVOS...</div>
+    </div>
+  </div>
+
+  <!-- PAGE: DASHBOARD -->
+  <div class="page" id="page-dashboard">
+    <div class="page-header">
+      <div>
+        <div class="page-title">DASH<span>BOARD</span></div>
+        <div class="page-sub" id="dash-sub">// Sesión actual</div>
+      </div>
+      <button class="analyze-btn" onclick="showPage('upload')" style="font-size:0.8rem;padding:8px 18px;">+ NUEVA SESIÓN</button>
+    </div>
+
+    <!-- FTP HERO -->
+    <div class="ftp-hero fade-in">
+      <div>
+        <div class="ftp-label-big">// FTP ESTIMADO</div>
+        <div class="ftp-big" id="ftpBig">—</div>
+        <div class="ftp-unit-big">VATIOS</div>
+      </div>
+      <div class="divider-v"></div>
+      <div class="ftp-right">
+        <div>
+          <div class="ftp-label-big">// W/KG</div>
+          <div class="wkg-big" id="wkgBig">—</div>
+        </div>
+        <div class="profile-badge" id="profileBadge">—</div>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="sec-title">RESUMEN DE SESIÓN</div>
+    <div class="stats-row">
+      <div class="card"><div class="card-label">Mejor 20 min</div><div class="card-value" id="sBest20">—</div><div class="card-unit">vatios</div></div>
+      <div class="card"><div class="card-label">Potencia media</div><div class="card-value" id="sAvg">—</div><div class="card-unit">vatios</div></div>
+      <div class="card"><div class="card-label">Potencia pico</div><div class="card-value" id="sMax">—</div><div class="card-unit">vatios</div></div>
+      <div class="card"><div class="card-label">Sesiones analizadas</div><div class="card-value" id="sSessions">—</div><div class="card-unit">actividades</div></div>
+      <div class="card"><div class="card-label">Tiempo total</div><div class="card-value" id="sTime">—</div><div class="card-unit">horas</div></div>
+      <div class="card"><div class="card-label">TSS estimado</div><div class="card-value" id="sTSS">—</div><div class="card-unit">Training Stress Score</div></div>
+    </div>
+
+    <!-- ZONES -->
+    <div class="sec-title">DISTRIBUCIÓN DE ZONAS</div>
+    <div class="card">
+      <div class="zones-wrap" id="zonesWrap"></div>
+    </div>
+
+    <!-- PROFILE TABLE -->
+    <div class="sec-title">PERFIL W/KG · ESTÁNDARES INTERNACIONALES</div>
+    <div class="card">
+      <table class="profile-table" id="profileTable"></table>
+    </div>
+  </div>
+
+  <!-- PAGE: POWER CURVE -->
+  <div class="page" id="page-curve">
+    <div class="page-header">
+      <div>
+        <div class="page-title">CURVA DE <span>POTENCIA</span></div>
+        <div class="page-sub">// Mejor esfuerzo por duración · Power Curve</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="curve-container">
+        <canvas id="curveCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="sec-title">MEJORES ESFUERZOS</div>
+    <div class="stats-row" id="bestEfforts"></div>
+
+    <div class="sec-title">INTERPRETACIÓN</div>
+    <div class="card" id="curveInterpret">
+      <p style="font-size:0.82rem;color:var(--muted2);line-height:1.7;">Analiza tu sesión para ver la interpretación de tu curva de potencia.</p>
+    </div>
+  </div>
+
+  <!-- PAGE: HISTORY -->
+  <div class="page" id="page-history">
+    <div class="page-header">
+      <div>
+        <div class="page-title">HISTÓRICO <span>FTP</span></div>
+        <div class="page-sub">// Progresión de tu umbral de potencia</div>
+      </div>
+      <button class="analyze-btn" onclick="clearHistory()" style="font-size:0.8rem;padding:8px 18px;background:none;border:1px solid var(--border2);color:var(--muted2);">BORRAR TODO</button>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;" id="historyChartWrap">
+      <div class="history-container">
+        <canvas id="historyCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>FECHA</th>
+              <th>FTP (W)</th>
+              <th>W/KG</th>
+              <th>PESO</th>
+              <th>ARCHIVOS</th>
+              <th>CAMBIO</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+      <div id="historyEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">📭</div>
+        <div class="empty-text">Sin datos históricos aún.<br>Analiza tu primera sesión para empezar a registrar tu progreso.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: WORKOUTS -->
+  <div class="page" id="page-workouts">
+    <div class="page-header">
+      <div>
+        <div class="page-title">PLAN DE <span>WORKOUTS</span></div>
+        <div class="page-sub" id="workoutSub">// Entrenamientos personalizados a tu FTP</div>
+      </div>
+    </div>
+    <div class="workouts-grid" id="workoutsGrid"></div>
+
+    <div class="sec-title">PLAN SEMANAL SUGERIDO</div>
+    <div class="card" id="weeklyPlan"></div>
+  </div>
+
+</main>
+</div>
+
+<script>
+// ── STATE ────────────────────────────────────────────────────────────────────
+let state = {
+  analyzed: false,
+  ftp: 0,
+  wkg: 0,
+  weight: 70,
+  avgPower: 0,
+  maxPower: 0,
+  best20: 0,
+  sessions: 0,
+  durationHrs: 0,
+  tss: 0,
+  zones: [],
+  powerCurve: {},
+  powers: [],
+  fileNames: [],
+};
+
+// Load history from memory (session-only, no localStorage)
+let ftpHistory = [];
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  const navMap = { upload:'upload', dashboard:'navDash', curve:'navCurve', history:'navHistory', workouts:'navWorkouts' };
+  // highlight nav
+  const navItems = document.querySelectorAll('.nav-item');
+  const pageOrder = ['upload','dashboard','curve','history','workouts'];
+  const idx = pageOrder.indexOf(id);
+  if (navItems[idx]) navItems[idx].classList.add('active');
+
+  if (id === 'history') renderHistory();
+  if (id === 'curve' && state.analyzed) renderCurve();
+  if (id === 'workouts' && state.analyzed) renderWorkouts();
+}
+
+// ── FIT PARSER ───────────────────────────────────────────────────────────────
+class FITParser {
+  constructor(buffer) {
+    this.dv = new DataView(buffer);
+    this.pos = 0;
+    this.records = [];
+    this.defs = {};
+  }
+
+  u8()  { return this.dv.getUint8(this.pos++); }
+  u16() { const v=this.dv.getUint16(this.pos,true); this.pos+=2; return v; }
+  u32() { const v=this.dv.getUint32(this.pos,true); this.pos+=4; return v; }
+  i8()  { return this.dv.getInt8(this.pos++); }
+  i16() { const v=this.dv.getInt16(this.pos,true); this.pos+=2; return v; }
+  i32() { const v=this.dv.getInt32(this.pos,true); this.pos+=4; return v; }
+  skip(n) { this.pos+=n; }
+
+  readField(f, le) {
+    const s=f.size, bt=f.baseType&0x9F;
+    if(s===1) return bt===0x01?this.i8():this.u8();
+    if(s===2) { const v=le?this.dv.getUint16(this.pos,true):this.dv.getUint16(this.pos,false); this.pos+=2; return v; }
+    if(s===4) { const v=le?this.dv.getUint32(this.pos,true):this.dv.getUint32(this.pos,false); this.pos+=4; return v; }
+    this.skip(s); return 0;
+  }
+
+  parse() {
+    const hdrSz=this.u8(); this.u8(); this.u16();
+    const dataSz=this.u32();
+    this.skip(4); // magic
+    if(hdrSz===14) this.u16(); // CRC
+
+    const end=this.pos+dataSz;
+    while(this.pos<end-1) {
+      try {
+        const hdr=this.u8();
+        const isDef=(hdr&0x40)!==0;
+        const lmt=hdr&0x0F;
+        if(isDef) {
+          this.u8();
+          const arch=this.u8();
+          const gmn=arch===0?this.u16():(this.dv.getUint8(this.pos++)<<8|this.dv.getUint8(this.pos++));
+          const nf=this.u8();
+          const fields=[];
+          for(let i=0;i<nf;i++) {
+            const fd=this.u8(), sz=this.u8(), bt=this.u8();
+            fields.push({fd,size:sz,baseType:bt});
+          }
+          this.defs[lmt]={gmn,fields,le:arch===0};
+        } else {
+          const d=this.defs[lmt];
+          if(!d){this.pos++;continue;}
+          const rec={};
+          for(const f of d.fields) {
+            const v=this.readField(f,d.le);
+            if(d.gmn===20) {
+              if(f.fd===7)   rec.power=v;
+              if(f.fd===6)   rec.speed=v;
+              if(f.fd===3)   rec.hr=v;
+              if(f.fd===4)   rec.cad=v;
+              if(f.fd===253) rec.ts=v;
+            }
+          }
+          if(d.gmn===20&&rec.power!==undefined) this.records.push(rec);
+        }
+      } catch(e){break;}
+    }
+    return this.records;
+  }
+}
+
+// ── ANALYSIS ─────────────────────────────────────────────────────────────────
+function analyze(allRecords, weight) {
+  const powers = allRecords.map(r=>r.power).filter(p=>p>0&&p<2500);
+  if(powers.length<60) return null;
+
+  const avg = Math.round(powers.reduce((a,b)=>a+b,0)/powers.length);
+  const max = Math.max(...powers);
+
+  // Rolling best efforts
+  const durations = [5,10,30,60,120,300,600,1200,1800,3600];
+  const bestEfforts = {};
+  durations.forEach(d => {
+    if(powers.length>=d) {
+      let win=powers.slice(0,d).reduce((a,b)=>a+b,0);
+      let best=win;
+      for(let i=d;i<powers.length;i++){
+        win+=powers[i]-powers[i-d];
+        if(win>best) best=win;
+      }
+      bestEfforts[d]=Math.round(best/d);
+    } else {
+      bestEfforts[d]=Math.round(avg*1.02);
+    }
+  });
+
+  const best20=bestEfforts[1200]||Math.round(avg*1.05);
+  const ftp=Math.round(best20*0.95);
+  const wkg=+(ftp/weight).toFixed(2);
+  const hrs=powers.length/3600;
+
+  // Zones
+  const zDefs=[
+    {name:'Z1 · Recuperación',max:0.55,color:'#3a3a8a'},
+    {name:'Z2 · Resistencia', max:0.75,color:'#5050cc'},
+    {name:'Z3 · Tempo',       max:0.90,color:'#00e5ff'},
+    {name:'Z4 · Umbral',      max:1.05,color:'#a8ff3e'},
+    {name:'Z5 · VO2max',      max:1.20,color:'#ff6b35'},
+    {name:'Z6 · Anaeróbico',  max:999, color:'#ff2255'},
+  ];
+  zDefs.forEach(z=>z.time=0);
+  powers.forEach(p=>{
+    const pct=p/ftp;
+    for(const z of zDefs) { if(pct<=z.max){z.time++;break;} }
+  });
+  const tot=powers.length;
+  zDefs.forEach(z=>z.pct=Math.round(z.time/tot*100));
+
+  const IF=avg/ftp;
+  const tss=Math.round((hrs*3600*avg*IF)/(ftp*3600)*100);
+
+  return {ftp,wkg,avg,max,best20,hrs,tss,zones:zDefs,bestEfforts,powers};
+}
+
+// ── DEMO DATA ─────────────────────────────────────────────────────────────────
+function demoData() {
+  const n=5400, base=215;
+  const r=[];
+  for(let i=0;i<n;i++){
+    const ph=i/n;
+    let p=base+Math.sin(ph*Math.PI*6)*50+(Math.random()-0.5)*25;
+    if(ph>0.25&&ph<0.65){
+      const on=Math.sin((ph-0.25)/0.4*Math.PI*5)>0.4;
+      if(on) p+=90;
+    }
+    r.push({power:Math.max(0,Math.round(p))});
+  }
+  return r;
+}
+
+// ── PROFILE LEVELS ────────────────────────────────────────────────────────────
+const levels = [
+  {name:'Sin entrenar',   color:'#444466', men:[0,2.0],   women:[0,1.6]},
+  {name:'Regular',        color:'#5555aa', men:[2.0,2.5], women:[1.6,2.1]},
+  {name:'Intermedio',     color:'#00e5ff', men:[2.5,3.0], women:[2.1,2.6]},
+  {name:'Bueno',          color:'#a8ff3e', men:[3.0,3.5], women:[2.6,3.1]},
+  {name:'Muy bueno',      color:'#ff6b35', men:[3.5,4.0], women:[3.1,3.5]},
+  {name:'Excelente',      color:'#ff2255', men:[4.0,4.5], women:[3.5,4.0]},
+  {name:'Élite',          color:'#ff00ff', men:[4.5,99],  women:[4.0,99]},
+];
+
+function getLevel(wkg) {
+  return levels.find(l=>wkg>=l.men[0]&&wkg<l.men[1]) || levels[0];
+}
+
+// ── RENDER DASHBOARD ──────────────────────────────────────────────────────────
+function renderDashboard() {
+  const s=state;
+  document.getElementById('dash-sub').textContent=`// ${s.fileNames.join(', ')}`;
+  document.getElementById('ftpBig').textContent=s.ftp;
+  document.getElementById('wkgBig').textContent=s.wkg+' W/kg';
+
+  const lvl=getLevel(s.wkg);
+  const badge=document.getElementById('profileBadge');
+  badge.textContent='● '+lvl.name.toUpperCase();
+  badge.style.background=lvl.color+'22';
+  badge.style.color=lvl.color;
+  badge.style.border=`1px solid ${lvl.color}44`;
+
+  document.getElementById('sBest20').textContent=s.best20;
+  document.getElementById('sAvg').textContent=s.avg;
+  document.getElementById('sMax').textContent=s.max;
+  document.getElementById('sSessions').textContent=s.sessions;
+  document.getElementById('sTime').textContent=s.hrs.toFixed(1);
+  document.getElementById('sTSS').textContent=s.tss;
+
+  // Zones
+  const zw=document.getElementById('zonesWrap');
+  zw.innerHTML=s.zones.map(z=>`
+    <div class="zone-row">
+      <div class="zone-name">${z.name}</div>
+      <div class="zone-bar-bg"><div class="zone-bar-fill" style="width:0%;background:${z.color}" data-pct="${z.pct}"></div></div>
+      <div class="zone-pct">${z.pct}%</div>
+    </div>
+  `).join('');
+  setTimeout(()=>{
+    document.querySelectorAll('.zone-bar-fill').forEach(el=>{
+      el.style.width=el.dataset.pct+'%';
+    });
+  },100);
+
+  // Profile table
+  const tbl=document.getElementById('profileTable');
+  tbl.innerHTML=`<thead><tr><th>NIVEL</th><th>W/KG (HOMBRE)</th><th>W/KG (MUJER)</th><th>TÚ</th></tr></thead><tbody>
+  ${levels.map(l=>{
+    const isCurrent=s.wkg>=l.men[0]&&s.wkg<l.men[1];
+    return `<tr class="${isCurrent?'current-row':''}">
+      <td><span class="level-dot" style="background:${l.color}"></span>${l.name}${isCurrent?' ← TÚ':''}</td>
+      <td>${l.men[0]}–${l.men[1]===99?'∞':l.men[1]}</td>
+      <td>${l.women[0]}–${l.women[1]===99?'∞':l.women[1]}</td>
+      <td>${isCurrent?'<span style="color:'+l.color+'">'+s.wkg+'</span>':''}</td>
+    </tr>`;
+  }).join('')}</tbody>`;
+}
+
+// ── POWER CURVE ───────────────────────────────────────────────────────────────
+function renderCurve() {
+  const canvas=document.getElementById('curveCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.parentElement.clientWidth-48;
+  const H=280;
+  canvas.width=W; canvas.height=H;
+
+  const durations=[5,10,30,60,120,300,600,1200,1800,3600];
+  const labels=['5s','10s','30s','1m','2m','5m','10m','20m','30m','60m'];
+  const values=durations.map(d=>state.bestEfforts[d]||0);
+  const maxV=Math.max(...values)*1.1;
+
+  const pad={top:20,right:20,bottom:40,left:55};
+  const cW=W-pad.left-pad.right;
+  const cH=H-pad.top-pad.bottom;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='#1c1c2e';
+  ctx.lineWidth=1;
+  for(let i=0;i<=5;i++){
+    const y=pad.top+cH*(1-i/5);
+    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cW,y); ctx.stroke();
+    ctx.fillStyle='#4a4a6a';
+    ctx.font='11px IBM Plex Mono, monospace';
+    ctx.fillText(Math.round(maxV*i/5)+'W',4,y+4);
+  }
+
+  // Gradient fill
+  const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+cH);
+  grad.addColorStop(0,'rgba(0,229,255,0.3)');
+  grad.addColorStop(1,'rgba(0,229,255,0)');
+
+  const points=durations.map((d,i)=>({
+    x: pad.left + (i/(durations.length-1))*cW,
+    y: pad.top + cH*(1-values[i]/maxV)
+  }));
+
+  // Fill
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, pad.top+cH);
+  points.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.lineTo(points[points.length-1].x, pad.top+cH);
+  ctx.closePath();
+  ctx.fillStyle=grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(points[0].x,points[0].y);
+  points.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle='#00e5ff';
+  ctx.lineWidth=2.5;
+  ctx.stroke();
+
+  // FTP line
+  const ftpY=pad.top+cH*(1-state.ftp/maxV);
+  ctx.beginPath(); ctx.moveTo(pad.left,ftpY); ctx.lineTo(pad.left+cW,ftpY);
+  ctx.strokeStyle='rgba(168,255,62,0.4)';
+  ctx.lineWidth=1;
+  ctx.setLineDash([5,5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#a8ff3e';
+  ctx.font='10px IBM Plex Mono, monospace';
+  ctx.fillText('FTP '+state.ftp+'W', pad.left+4, ftpY-5);
+
+  // Dots + labels
+  points.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2);
+    ctx.fillStyle='#00e5ff'; ctx.fill();
+    ctx.fillStyle='#4a4a6a';
+    ctx.font='10px IBM Plex Mono, monospace';
+    ctx.textAlign='center';
+    ctx.fillText(labels[i], p.x, pad.top+cH+16);
+    ctx.textAlign='left';
+  });
+
+  // Best efforts cards
+  const keyDurations=[60,300,1200,3600];
+  const keyLabels=['1 minuto','5 minutos','20 minutos','1 hora'];
+  const be=document.getElementById('bestEfforts');
+  be.innerHTML=keyDurations.map((d,i)=>`
+    <div class="card">
+      <div class="card-label">MEJOR ${keyLabels[i].toUpperCase()}</div>
+      <div class="card-value">${state.bestEfforts[d]||'—'}</div>
+      <div class="card-unit">vatios · ${state.bestEfforts[d]?(state.bestEfforts[d]/state.weight).toFixed(2)+' W/kg':''}</div>
+    </div>
+  `).join('');
+
+  // Interpretation
+  const p5=state.bestEfforts[300], p20=state.bestEfforts[1200], p60=state.bestEfforts[3600];
+  let profile='';
+  if(p5&&p20) {
+    const ratio=p5/p20;
+    if(ratio>1.3) profile='Tu perfil indica un <strong style="color:var(--accent2)">ciclista de esfuerzos cortos / sprinter</strong>. Tu potencia anaeróbica es alta en relación al umbral. Beneficiarías de más trabajo en Z4/Z5 para elevar el FTP.';
+    else if(ratio>1.15) profile='Perfil <strong style="color:var(--accent)">equilibrado</strong> entre potencia corta y resistencia. Buena base aeróbica con capacidad anaeróbica funcional.';
+    else profile='Perfil de <strong style="color:var(--accent3)">rodador / escalador</strong>. Tu potencia se mantiene muy bien en esfuerzos largos. FTP cercano a la potencia de 5 min indica excelente eficiencia aeróbica.';
+  }
+  document.getElementById('curveInterpret').innerHTML=`<p style="font-size:0.85rem;color:var(--muted2);line-height:1.8;">${profile||'Analiza más sesiones para una interpretación detallada.'}</p>`;
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const body=document.getElementById('historyBody');
+  const empty=document.getElementById('historyEmpty');
+
+  if(ftpHistory.length===0){
+    body.innerHTML='';
+    empty.style.display='block';
+    document.getElementById('historyChartWrap').style.display='none';
+    return;
+  }
+
+  empty.style.display='none';
+  document.getElementById('historyChartWrap').style.display='block';
+
+  body.innerHTML=ftpHistory.map((h,i)=>{
+    const prev=ftpHistory[i-1];
+    const diff=prev?h.ftp-prev.ftp:null;
+    const trendClass=diff===null?'':diff>0?'trend-up':diff<0?'trend-down':'trend-flat';
+    const trendText=diff===null?'Primera sesión':diff>0?`▲ +${diff}W`:diff<0?`▼ ${diff}W`:'= sin cambio';
+    return `<tr>
+      <td>${h.date}</td>
+      <td style="color:var(--accent);font-weight:500">${h.ftp}</td>
+      <td style="color:var(--accent2)">${h.wkg}</td>
+      <td>${h.weight} kg</td>
+      <td style="color:var(--muted2)">${h.files}</td>
+      <td class="${trendClass}">${trendText}</td>
+      <td><button class="delete-btn" onclick="deleteHistory(${i})">✕</button></td>
+    </tr>`;
+  }).reverse().join('');
+
+  // History chart
+  const canvas=document.getElementById('historyCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.parentElement.clientWidth-48;
+  const H=220;
+  canvas.width=W; canvas.height=H;
+
+  if(ftpHistory.length<2){
+    ctx.fillStyle='var(--muted2)';
+    ctx.font='13px IBM Plex Mono, monospace';
+    ctx.fillText('Necesitas al menos 2 sesiones para ver la gráfica', W/2-160, H/2);
+    return;
+  }
+
+  const ftps=ftpHistory.map(h=>h.ftp);
+  const minF=Math.min(...ftps)*0.95;
+  const maxF=Math.max(...ftps)*1.05;
+  const pad={top:20,right:20,bottom:30,left:55};
+  const cW=W-pad.left-pad.right;
+  const cH=H-pad.top-pad.bottom;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  for(let i=0;i<=4;i++){
+    const y=pad.top+cH*(1-i/4);
+    ctx.strokeStyle='#1c1c2e'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cW,y); ctx.stroke();
+    ctx.fillStyle='#4a4a6a';
+    ctx.font='10px IBM Plex Mono, monospace';
+    ctx.fillText(Math.round(minF+(maxF-minF)*i/4)+'W', 4, y+4);
+  }
+
+  const pts=ftpHistory.map((h,i)=>({
+    x: pad.left+(i/(ftpHistory.length-1))*cW,
+    y: pad.top+cH*(1-(h.ftp-minF)/(maxF-minF))
+  }));
+
+  // Fill
+  const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+cH);
+  grad.addColorStop(0,'rgba(168,255,62,0.2)');
+  grad.addColorStop(1,'rgba(168,255,62,0)');
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x,pad.top+cH);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.lineTo(pts[pts.length-1].x,pad.top+cH);
+  ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle='#a8ff3e'; ctx.lineWidth=2.5; ctx.stroke();
+
+  // Dots
+  pts.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2);
+    ctx.fillStyle='#a8ff3e'; ctx.fill();
+    ctx.fillStyle='#a8ff3e';
+    ctx.font='11px IBM Plex Mono, monospace';
+    ctx.textAlign='center';
+    ctx.fillText(ftpHistory[i].ftp+'W', p.x, p.y-10);
+    ctx.textAlign='left';
+  });
+}
+
+function deleteHistory(i) {
+  ftpHistory.splice(i,1);
+  renderHistory();
+}
+
+function clearHistory() {
+  if(confirm('¿Borrar todo el histórico?')) { ftpHistory=[]; renderHistory(); }
+}
+
+// ── WORKOUTS ─────────────────────────────────────────────────────────────────
+function renderWorkouts() {
+  const ftp=state.ftp;
+  document.getElementById('workoutSub').textContent=`// FTP: ${ftp}W · ${state.wkg} W/kg`;
+
+  const workouts=[
+    { tag:'tag-ss',  tagLabel:'SWEET SPOT',  name:'SST Classic',
+      desc:'El workout más efectivo para subir FTP. Alta densidad de trabajo entre Z3 y Z4. Máximo estímulo de adaptación con fatiga manejable.',
+      pills:[`3×12 min @ ${Math.round(ftp*.90)}W`,`Descanso 5 min @ ${Math.round(ftp*.55)}W`],
+      tagColor:'rgba(0,229,255,0.15)','tagC':'#00e5ff' },
+    { tag:'tag-ou',  tagLabel:'OVER-UNDER',  name:'Over-Under',
+      desc:'Alterna por encima y por debajo del FTP. Entrena la tolerancia al lactato y la capacidad de recuperación sin bajar intensidad.',
+      pills:[`5×(3 min @ ${Math.round(ftp*1.05)}W + 3 min @ ${Math.round(ftp*.95)}W)`,`Descanso 8 min @ ${Math.round(ftp*.5)}W`],
+      tagColor:'rgba(168,255,62,0.15)',tagC:'#a8ff3e' },
+    { tag:'tag-vo2', tagLabel:'VO2MAX',       name:'Tabata Potencia',
+      desc:'Intervalos cortos a alta intensidad para elevar tu VO2max. Eleva el "techo" aeróbico que luego permite subir el FTP.',
+      pills:[`6×5 min @ ${Math.round(ftp*1.15)}W`,`Descanso 5 min @ ${Math.round(ftp*.5)}W`],
+      tagColor:'rgba(255,107,53,0.15)',tagC:'#ff6b35' },
+    { tag:'tag-end', tagLabel:'RESISTENCIA',  name:'Tempo Progresivo',
+      desc:'Rodaje largo con progresión de intensidad. Construye la base aeróbica, eficiencia de combustión y capacidad de trabajo total.',
+      pills:[`20 min @ ${Math.round(ftp*.65)}W`,`20 min @ ${Math.round(ftp*.72)}W`,`20 min @ ${Math.round(ftp*.78)}W`],
+      tagColor:'rgba(90,90,200,0.15)',tagC:'#8080f0' },
+    { tag:'tag-ramp',tagLabel:'TEST FTP',     name:'Ramp Test',
+      desc:'Protocolo de 25 minutos para estimar tu FTP con precisión. Potencia máxima alcanzada × 0.75. Sin necesidad de 20 min all-out.',
+      pills:['8 min calentamiento','Ramp: +20W cada 1 min','Hasta el fallo · FTP = pico × 0.75'],
+      tagColor:'rgba(255,34,85,0.15)',tagC:'#ff2255' },
+    { tag:'tag-rec', tagLabel:'RECUPERACIÓN', name:'Spin Fácil',
+      desc:'Pedaleo suave de recuperación activa. Fundamental para adaptarse entre sesiones duras. Muchos ciclistas lo ignoran y se sobre-entrenan.',
+      pills:[`60 min @ ${Math.round(ftp*.5)}–${Math.round(ftp*.55)}W`,`Cadencia alta: 90-100 rpm`],
+      tagColor:'rgba(50,50,100,0.3)',tagC:'#5a5aaa' },
+  ];
+
+  document.getElementById('workoutsGrid').innerHTML=workouts.map(w=>`
+    <div class="workout-card">
+      <div class="w-tag" style="background:${w.tagColor};color:${w.tagC};border:1px solid ${w.tagC}44">${w.tagLabel}</div>
+      <div class="w-name">${w.name}</div>
+      <div class="w-desc">${w.desc}</div>
+      <div class="w-pills">${w.pills.map(p=>`<div class="pill">${p}</div>`).join('')}</div>
+    </div>
+  `).join('');
+
+  // Weekly plan
+  const days=[
+    {day:'LUN',w:'Descanso o movilidad',color:'#3a3a6a'},
+    {day:'MAR',w:`SST Classic · ${Math.round(ftp*.9)}W`,color:'#00e5ff'},
+    {day:'MIE',w:`Spin Fácil · ${Math.round(ftp*.52)}W`,color:'#3a3a6a'},
+    {day:'JUE',w:`Over-Under · ${Math.round(ftp*1.0)}W`,color:'#a8ff3e'},
+    {day:'VIE',w:'Descanso',color:'#3a3a6a'},
+    {day:'SAB',w:`Tempo Progresivo · 60–90 min`,color:'#8080f0'},
+    {day:'DOM',w:`Rodaje largo Z2 · ${Math.round(ftp*.68)}W`,color:'#5050cc'},
+  ];
+  document.getElementById('weeklyPlan').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
+      ${days.map(d=>`
+        <div style="text-align:center;padding:16px 8px;background:var(--bg);border:1px solid var(--border);border-top:3px solid ${d.color};border-radius:4px">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:${d.color};letter-spacing:2px;margin-bottom:8px">${d.day}</div>
+          <div style="font-size:0.7rem;color:var(--muted2);font-family:'IBM Plex Mono',monospace;line-height:1.5">${d.w}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// ── FILE HANDLING ─────────────────────────────────────────────────────────────
+let pendingFiles=[];
+
+document.getElementById('fileInput').addEventListener('change',e=>{
+  pendingFiles=Array.from(e.target.files);
+  document.getElementById('analyzeBtn').disabled=pendingFiles.length===0;
+  document.getElementById('analyzeBtn').textContent=`ANALIZAR ${pendingFiles.length} ARCHIVO${pendingFiles.length>1?'S':''} →`;
+});
+
+const dropZone=document.getElementById('dropZone');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop',e=>{
+  e.preventDefault(); dropZone.classList.remove('drag');
+  pendingFiles=Array.from(e.dataTransfer.files);
+  document.getElementById('analyzeBtn').disabled=false;
+  document.getElementById('analyzeBtn').textContent=`ANALIZAR ${pendingFiles.length} ARCHIVO${pendingFiles.length>1?'S':''} →`;
+});
+
+async function runAnalysis() {
+  const weight=parseFloat(document.getElementById('weightInput').value)||70;
+  document.getElementById('loading').style.display='block';
+  dropZone.style.display='none';
+  document.querySelector('.weight-row').style.display='none';
+  document.querySelector('.guide-box').style.display='none';
+
+  await new Promise(r=>setTimeout(r,500));
+
+  const allRecords=[];
+  const fileNames=[];
+  let sessions=0;
+  let isDemo=false;
+
+  if(pendingFiles.length>0) {
+    for(const file of pendingFiles) {
+      fileNames.push(file.name);
+      try {
+        const buf=await file.arrayBuffer();
+        let records=[];
+        if(file.name.toLowerCase().endsWith('.fit')) {
+          records=new FITParser(buf).parse();
+        } else if(file.name.toLowerCase().endsWith('.csv')) {
+          const text=new TextDecoder().decode(buf);
+          const lines=text.split('\n');
+          const header=lines[0].toLowerCase().split(',');
+          const pi=header.findIndex(h=>h.includes('power')||h.includes('potencia')||h==='watts');
+          if(pi>=0) {
+            for(let i=1;i<lines.length;i++){
+              const p=parseFloat(lines[i].split(',')[pi]);
+              if(!isNaN(p)&&p>=0) records.push({power:p});
+            }
+          }
+        }
+        if(records.length>0){allRecords.push(...records);sessions++;}
+      } catch(e){console.warn(e);}
+    }
+  }
+
+  if(allRecords.length<100){
+    allRecords.push(...demoData());
+    fileNames.push('[DEMO — sube tu .FIT real]');
+    sessions=1; isDemo=true;
+  }
+
+  const result=analyze(allRecords,weight);
+  document.getElementById('loading').style.display='none';
+
+  if(result){
+    Object.assign(state,result,{weight,sessions,fileNames,hrs:result.hrs,analyzed:true});
+
+    // Save to history
+    const now=new Date();
+    const dateStr=now.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});
+    ftpHistory.push({
+      date:dateStr,
+      ftp:result.ftp,
+      wkg:result.wkg,
+      weight:weight,
+      files:fileNames.join(', '),
+    });
+
+    renderDashboard();
+    showPage('dashboard');
+  }
+}
+</script>
+</body>
+</html>
