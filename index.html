@@ -2,28 +2,34 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FTP Lab v2 — Análisis de Potencia Ciclista</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FTP Lab v3 — Análisis de Potencia Ciclista</title>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@300;400;500&display=swap');
 
 :root {
-  --bg: #080810;
-  --s1: #0e0e1a;
-  --s2: #13131f;
-  --border: #1c1c2e;
-  --border2: #252538;
+  --bg: #06060f;
+  --s1: #0b0b18;
+  --s2: #10101e;
+  --s3: #161625;
+  --border: #1a1a2e;
+  --border2: #222238;
   --accent: #00e5ff;
   --accent2: #ff6b35;
   --accent3: #a8ff3e;
-  --text: #dde0f0;
-  --muted: #4a4a6a;
-  --muted2: #6a6a8a;
-  --white: #f0f2ff;
+  --accent4: #c77dff;
+  --text: #d8dcea;
+  --muted: #3e3e5e;
+  --muted2: #60608a;
+  --white: #eef0ff;
+  --tab-h: 64px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
-* { margin:0; padding:0; box-sizing:border-box; }
-
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
 html { scroll-behavior: smooth; }
 
 body {
@@ -35,116 +41,132 @@ body {
   overflow-x: hidden;
 }
 
-/* Noise texture overlay */
+/* Noise */
 body::after {
   content:'';
-  position:fixed;
-  inset:0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events:none;
-  z-index:9999;
-  opacity:.4;
+  position:fixed; inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events:none; z-index:9999; opacity:.45;
 }
 
 /* ── LAYOUT ── */
 .app { display:flex; min-height:100vh; }
 
+/* ── SIDEBAR (desktop) ── */
 .sidebar {
-  width: 220px;
-  min-width: 220px;
+  width: 228px;
+  min-width: 228px;
   background: var(--s1);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 28px 0;
+  padding: 28px 0 24px;
   position: fixed;
   top: 0; left: 0;
   height: 100vh;
-  z-index: 100;
+  z-index: 200;
+  transition: width 0.25s ease;
 }
 
-.logo-wrap { padding: 0 24px 28px; border-bottom: 1px solid var(--border); }
+.logo-wrap {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── LOGOMARK SVG ── */
+.logomark {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  filter: drop-shadow(0 0 8px rgba(0,229,255,0.45));
+}
+
+.logo-text-wrap { display: flex; flex-direction: column; }
 
 .logo {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 900;
-  font-size: 1.8rem;
-  letter-spacing: 4px;
+  font-size: 1.35rem;
+  letter-spacing: 5px;
   color: var(--accent);
-  text-shadow: 0 0 30px rgba(0,229,255,0.4);
   line-height: 1;
 }
 
 .logo-sub {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   color: var(--muted2);
   letter-spacing: 2px;
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
-.nav { padding: 20px 0; flex: 1; }
+.nav { padding: 18px 0; flex: 1; }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 24px;
+  gap: 12px;
+  padding: 11px 20px;
   cursor: pointer;
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--muted2);
-  transition: all 0.2s;
+  transition: all 0.18s;
   border-left: 2px solid transparent;
+  min-height: 44px;
 }
 
-.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
-.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,255,0.05); }
-.nav-icon { font-size: 1rem; min-width: 20px; }
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.025); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,255,0.06); }
+.nav-icon { font-size: 1rem; min-width: 22px; text-align: center; }
 
 .sidebar-footer {
-  padding: 16px 24px;
+  padding: 14px 20px;
   border-top: 1px solid var(--border);
 }
 
 .version-tag {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   color: var(--muted);
   letter-spacing: 1px;
+  line-height: 1.7;
 }
 
-/* ── MAIN CONTENT ── */
+/* ── MAIN ── */
 .main {
-  margin-left: 220px;
+  margin-left: 228px;
   flex: 1;
-  padding: 40px;
-  max-width: calc(100vw - 220px);
+  padding: 36px 40px 60px;
+  max-width: calc(100vw - 228px);
 }
 
 /* ── PAGES ── */
 .page { display: none; }
 .page.active { display: block; }
 
-/* ── SECTION HEADER ── */
+/* ── PAGE HEADER ── */
 .page-header {
-  margin-bottom: 32px;
-  padding-bottom: 20px;
+  margin-bottom: 28px;
+  padding-bottom: 18px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
 }
 
 .page-title {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 900;
-  font-size: 2.8rem;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
   letter-spacing: 4px;
   text-transform: uppercase;
   color: var(--white);
@@ -155,20 +177,20 @@ body::after {
 
 .page-sub {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--muted2);
   letter-spacing: 1px;
-  margin-top: 6px;
+  margin-top: 5px;
 }
 
 /* ── UPLOAD ── */
 .upload-zone {
   border: 2px dashed var(--border2);
-  border-radius: 6px;
-  padding: 64px 40px;
+  border-radius: 8px;
+  padding: 48px 32px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.25s;
+  transition: all 0.22s;
   background: var(--s2);
   position: relative;
   overflow: hidden;
@@ -176,19 +198,23 @@ body::after {
 
 .upload-zone::before {
   content:'';
-  position:absolute;
-  inset:0;
-  background: radial-gradient(ellipse at 70% 30%, rgba(0,229,255,0.04) 0%, transparent 60%);
+  position:absolute; inset:0;
+  background: radial-gradient(ellipse at 70% 20%, rgba(0,229,255,0.05) 0%, transparent 65%);
+  pointer-events: none;
 }
 
-.upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(0,229,255,0.03); }
+.upload-zone:hover, .upload-zone.drag {
+  border-color: var(--accent);
+  background: rgba(0,229,255,0.03);
+  box-shadow: 0 0 40px rgba(0,229,255,0.06);
+}
 
-.upload-icon { font-size:3.5rem; margin-bottom:16px; display:block; }
+.upload-icon { font-size:3rem; margin-bottom:12px; display:block; }
 
 .upload-title {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
-  font-size: 2rem;
+  font-size: clamp(1.3rem, 3vw, 1.9rem);
   letter-spacing: 4px;
   color: var(--white);
   margin-bottom: 8px;
@@ -196,29 +222,30 @@ body::after {
 
 .upload-hint {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--muted2);
+  line-height: 1.7;
 }
 
 .upload-hint strong { color: var(--accent); }
-
 #fileInput { display:none; }
 
-/* Weight input */
+/* ── WEIGHT ROW ── */
 .weight-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-  padding: 20px 24px;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 16px 20px;
   background: var(--s2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
+  flex-wrap: wrap;
 }
 
 .weight-label {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--muted2);
   letter-spacing: 1px;
   white-space: nowrap;
@@ -232,19 +259,20 @@ body::after {
   font-weight: 700;
   font-size: 1.4rem;
   letter-spacing: 2px;
-  padding: 8px 16px;
-  border-radius: 4px;
-  width: 100px;
+  padding: 8px 14px;
+  border-radius: 5px;
+  width: 90px;
   text-align: center;
   outline: none;
   transition: border-color 0.2s;
+  min-height: 44px;
 }
 
 .weight-input:focus { border-color: var(--accent); }
 
 .weight-unit {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted2);
 }
 
@@ -255,96 +283,88 @@ body::after {
   border: none;
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.95rem;
   letter-spacing: 3px;
-  padding: 12px 28px;
+  padding: 12px 24px;
   cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s;
+  border-radius: 5px;
+  transition: all 0.18s;
   text-transform: uppercase;
+  min-height: 44px;
 }
 
-.analyze-btn:hover { background: #33eaff; transform: translateY(-1px); }
-.analyze-btn:disabled { background: var(--border2); color: var(--muted); cursor: not-allowed; transform: none; }
+.analyze-btn:hover { background: #33eaff; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,229,255,0.25); }
+.analyze-btn:disabled { background: var(--border2); color: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
 
-/* Export guide */
+/* ── GUIDE BOX ── */
 .guide-box {
-  margin-top: 20px;
+  margin-top: 16px;
   background: var(--s2);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent3);
-  border-radius: 4px;
-  padding: 20px 24px;
+  border-radius: 6px;
+  padding: 18px 22px;
 }
 
 .guide-title {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   letter-spacing: 2px;
   color: var(--accent3);
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
-.guide-steps {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-}
-
+.guide-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
 .g-step { display:flex; gap:10px; align-items:flex-start; }
 .g-num {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 900;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   color: var(--accent3);
   line-height:1;
-  min-width:20px;
+  min-width:18px;
 }
-.g-text { font-size:0.78rem; color:var(--muted2); line-height:1.5; }
+.g-text { font-size:0.76rem; color:var(--muted2); line-height:1.55; }
 .g-text strong { color: var(--text); }
 
 /* ── LOADING ── */
-#loading {
-  display:none;
-  text-align:center;
-  padding: 80px 40px;
-}
+#loading { display:none; text-align:center; padding: 70px 40px; }
 
 .loader-ring {
-  width:60px; height:60px;
-  border: 3px solid var(--border2);
+  width:52px; height:52px;
+  border: 2px solid var(--border2);
   border-top-color: var(--accent);
   border-radius:50%;
-  animation: spin 0.7s linear infinite;
-  margin: 0 auto 20px;
+  animation: spin 0.65s linear infinite;
+  margin: 0 auto 18px;
 }
 
 @keyframes spin { to { transform:rotate(360deg); } }
 
 .loader-text {
   font-family: 'IBM Plex Mono', monospace;
-  font-size:0.75rem;
+  font-size:0.7rem;
   color: var(--muted2);
   letter-spacing:3px;
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
 
 /* ── CARDS ── */
 .card {
   background: var(--s2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 24px;
-  transition: border-color 0.2s;
+  border-radius: 8px;
+  padding: 22px;
+  transition: border-color 0.18s;
 }
 
 .card:hover { border-color: var(--border2); }
 
 .card-label {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--muted2);
@@ -354,14 +374,14 @@ body::after {
 .card-value {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
-  font-size: 2.4rem;
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
   line-height: 1;
   color: var(--white);
 }
 
 .card-unit {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: var(--muted2);
   margin-top: 6px;
 }
@@ -370,77 +390,94 @@ body::after {
 .ftp-hero {
   background: var(--s2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 40px;
+  border-radius: 8px;
+  padding: 36px 32px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 40px;
+  grid-template-columns: auto 1px 1fr;
+  gap: 32px;
   align-items: center;
   position: relative;
   overflow: hidden;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .ftp-hero::before {
   content:'';
   position:absolute;
-  top:-80px; left: 40%;
-  width:400px; height:400px;
-  background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 65%);
+  top:-100px; left:38%;
+  width:420px; height:420px;
+  background: radial-gradient(circle, rgba(0,229,255,0.07) 0%, transparent 65%);
   pointer-events:none;
+}
+
+.ftp-hero::after {
+  content:'';
+  position:absolute;
+  bottom:-60px; right:10%;
+  width:280px; height:280px;
+  background: radial-gradient(circle, rgba(255,107,53,0.05) 0%, transparent 65%);
+  pointer-events:none;
+}
+
+.ftp-left { display: flex; flex-direction: column; gap: 4px; }
+
+.ftp-label-big {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 3px;
+  color: var(--muted2);
+  text-transform: uppercase;
 }
 
 .ftp-big {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 900;
-  font-size: 7rem;
+  font-size: clamp(4rem, 8vw, 6.5rem);
   line-height: 1;
   color: var(--accent);
-  text-shadow: 0 0 80px rgba(0,229,255,0.35);
-  letter-spacing: -2px;
-}
-
-.ftp-label-big {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
-  letter-spacing: 3px;
-  color: var(--muted2);
-  text-transform: uppercase;
-  margin-bottom: 6px;
+  text-shadow: 0 0 60px rgba(0,229,255,0.3);
+  letter-spacing: -1px;
 }
 
 .ftp-unit-big {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: var(--muted2);
-  margin-top: 4px;
+  letter-spacing: 2px;
 }
 
 .divider-v {
   width: 1px;
-  height: 100px;
+  align-self: stretch;
   background: var(--border);
 }
 
-.ftp-right { display:flex; flex-direction:column; gap:12px; }
+.ftp-right {
+  display:flex;
+  flex-direction:column;
+  gap: 18px;
+  padding-left: 8px;
+}
+
+.wkg-wrap { display: flex; flex-direction: column; gap: 4px; }
 
 .wkg-big {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
-  font-size: 3.5rem;
+  font-size: clamp(2.2rem, 4vw, 3.2rem);
   line-height: 1;
   color: var(--accent2);
-  text-shadow: 0 0 40px rgba(255,107,53,0.3);
+  text-shadow: 0 0 30px rgba(255,107,53,0.25);
 }
 
 .profile-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
-  border-radius: 4px;
+  padding: 7px 13px;
+  border-radius: 5px;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 500;
   letter-spacing: 1px;
   width: fit-content;
@@ -451,14 +488,14 @@ body::after {
   width: 100%;
   border-collapse: collapse;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
 }
 
 .profile-table th {
   text-align: left;
   padding: 8px 12px;
   color: var(--muted2);
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   border-bottom: 1px solid var(--border);
@@ -470,6 +507,8 @@ body::after {
   color: var(--muted2);
 }
 
+.profile-table tr:last-child td { border-bottom: none; }
+
 .profile-table tr.current-row td {
   color: var(--white);
   background: rgba(0,229,255,0.05);
@@ -477,89 +516,82 @@ body::after {
 
 .profile-table tr.current-row td:first-child {
   border-left: 2px solid var(--accent);
+  padding-left: 10px;
 }
 
 .level-dot {
   display: inline-block;
-  width: 8px; height: 8px;
+  width: 7px; height: 7px;
   border-radius: 50%;
-  margin-right: 6px;
+  margin-right: 7px;
+  flex-shrink: 0;
 }
 
 /* ── STATS GRID ── */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
 }
 
 /* ── ZONES ── */
-.zones-wrap { display:flex; flex-direction:column; gap:10px; }
+.zones-wrap { display:flex; flex-direction:column; gap:9px; }
 
 .zone-row {
   display: grid;
-  grid-template-columns: 130px 1fr 50px;
+  grid-template-columns: 140px 1fr 48px;
   align-items: center;
   gap: 12px;
 }
 
 .zone-name {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--muted2);
 }
 
 .zone-bar-bg {
-  height: 18px;
+  height: 16px;
   background: var(--border);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .zone-bar-fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 1.1s cubic-bezier(0.4,0,0.2,1);
 }
 
 .zone-pct {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text);
   text-align: right;
 }
 
 /* ── POWER CURVE ── */
-.curve-container {
-  position: relative;
-  height: 280px;
-  margin-top: 8px;
-}
-
+.curve-container { position: relative; height: 280px; margin-top: 8px; }
 canvas { width:100% !important; }
 
-/* ── FTP HISTORY ── */
-.history-container {
-  position: relative;
-  height: 220px;
-  margin-bottom: 24px;
-}
-
+/* ── HISTORY ── */
+.history-container { position: relative; height: 220px; margin-bottom: 20px; }
 .history-table-wrap { overflow-x: auto; }
 
 .history-table {
   width: 100%;
   border-collapse: collapse;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
 }
 
 .history-table th {
   text-align: left;
-  padding: 10px 14px;
+  padding: 9px 13px;
   color: var(--muted2);
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   border-bottom: 1px solid var(--border);
@@ -567,7 +599,7 @@ canvas { width:100% !important; }
 }
 
 .history-table td {
-  padding: 12px 14px;
+  padding: 11px 13px;
   border-bottom: 1px solid var(--border);
   color: var(--text);
 }
@@ -579,161 +611,550 @@ canvas { width:100% !important; }
 .trend-flat { color: var(--muted2); }
 
 .delete-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 2px 6px;
-  border-radius: 3px;
-  transition: all 0.15s;
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: 0.85rem;
+  padding: 4px 8px; border-radius: 4px;
+  transition: all 0.14s; min-height: 44px; min-width: 44px;
 }
 .delete-btn:hover { color: #ff4466; background: rgba(255,68,102,0.1); }
 
-.empty-state {
-  text-align: center;
-  padding: 60px 40px;
-  color: var(--muted2);
-}
-
-.empty-icon { font-size: 3rem; margin-bottom: 12px; }
-.empty-text {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem;
-  letter-spacing: 1px;
-  line-height: 1.8;
-}
+.empty-state { text-align: center; padding: 52px 40px; color: var(--muted2); }
+.empty-icon { font-size: 2.6rem; margin-bottom: 12px; }
+.empty-text { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 1px; line-height: 1.9; }
 
 /* ── WORKOUTS ── */
 .workouts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 14px;
 }
 
 .workout-card {
   background: var(--s2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 24px;
+  border-radius: 8px;
+  padding: 22px;
   transition: all 0.2s;
 }
 
-.workout-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.workout-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
 
 .w-tag {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   letter-spacing: 2px;
   padding: 3px 9px;
-  border-radius: 2px;
+  border-radius: 3px;
   display: inline-block;
-  margin-bottom: 12px;
+  margin-bottom: 11px;
 }
 
 .w-name {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   letter-spacing: 2px;
   color: var(--white);
-  margin-bottom: 8px;
+  margin-bottom: 7px;
 }
 
-.w-desc {
-  font-size: 0.8rem;
-  color: var(--muted2);
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-
+.w-desc { font-size: 0.78rem; color: var(--muted2); line-height: 1.65; margin-bottom: 14px; }
 .w-pills { display:flex; flex-wrap:wrap; gap:6px; }
 
 .pill {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   padding: 4px 10px;
-  background: var(--border);
-  border-radius: 2px;
+  background: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
   color: var(--text);
 }
 
-/* ── SECTION TITLE ── */
+/* ── WEEKLY PLAN ── */
+.weekly-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+.weekly-grid { display: grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); gap: 8px; min-width: 700px; }
+
+.day-card {
+  text-align: center;
+  padding: 16px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  border-top: 3px solid transparent;
+  transition: all 0.18s;
+}
+
+.day-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+
+.day-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.day-desc {
+  font-size: 0.68rem;
+  color: var(--muted2);
+  font-family: 'IBM Plex Mono', monospace;
+  line-height: 1.55;
+}
+
+/* ── SEC TITLE ── */
 .sec-title {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   letter-spacing: 3px;
   text-transform: uppercase;
   color: var(--muted2);
-  margin: 32px 0 14px;
+  margin: 28px 0 12px;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.sec-title::after {
-  content:'';
-  flex:1;
-  height:1px;
-  background: var(--border);
-}
+.sec-title::after { content:''; flex:1; height:1px; background: var(--border); }
 
 /* ── GRID HELPERS ── */
-.two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-.three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
 
-@media (max-width: 900px) {
-  .sidebar { width:60px; min-width:60px; }
-  .logo-wrap .logo-sub, .nav-item span:not(.nav-icon) { display:none; }
-  .nav-item { padding:12px; justify-content:center; }
-  .logo { font-size:1rem; letter-spacing:1px; }
-  .main { margin-left:60px; padding:24px 16px; max-width:calc(100vw - 60px); }
-  .ftp-hero { grid-template-columns:1fr; }
-  .divider-v { display:none; }
-  .two-col, .three-col { grid-template-columns:1fr; }
+/* ── BOTTOM TAB BAR (mobile) ── */
+.tab-bar {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: calc(var(--tab-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--s1);
+  border-top: 1px solid var(--border);
+  z-index: 300;
 }
 
-/* Fade in animation */
+.tab-bar-inner {
+  display: flex;
+  height: var(--tab-h);
+  align-items: stretch;
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--muted2);
+  min-height: 44px;
+  padding: 0 4px;
+  border-top: 2px solid transparent;
+}
+
+.tab-item.active { color: var(--accent); border-top-color: var(--accent); background: rgba(0,229,255,0.05); }
+.tab-item:hover { color: var(--text); }
+
+.tab-icon { font-size: 1.1rem; line-height: 1; }
+
+.tab-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  /* Show tab bar, hide sidebar */
+  .tab-bar { display: block; }
+  .sidebar { display: none; }
+
+  .main {
+    margin-left: 0;
+    padding: 20px 16px calc(var(--tab-h) + var(--safe-bottom) + 16px);
+    padding-top: calc(var(--safe-top) + 20px);
+    max-width: 100vw;
+  }
+
+  /* FTP Hero → vertical stack */
+  .ftp-hero {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 20px;
+    padding: 24px 20px;
+  }
+
+  .divider-v { display: none; }
+
+  .ftp-right { padding-left: 0; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 16px; }
+
+  /* Stats → 2 col fixed */
+  .stats-row { grid-template-columns: 1fr 1fr; }
+
+  /* Zones row */
+  .zone-row { grid-template-columns: 100px 1fr 38px; }
+
+  /* Weekly plan horizontal scroll */
+  .weekly-scroll { margin: 0 -16px; padding: 0 16px 8px; }
+  .weekly-grid { min-width: 650px; }
+
+  .two-col, .three-col { grid-template-columns: 1fr; }
+
+  /* Upload zone less padding */
+  .upload-zone { padding: 32px 20px; }
+
+  .analyze-btn { width: 100%; margin-left: 0; }
+  .weight-row { flex-direction: column; align-items: stretch; }
+  .weight-input { width: 100%; }
+
+  /* Profile table scroll */
+  .profile-table { font-size: 0.65rem; }
+
+  /* Page title scaling */
+  .page-title { font-size: clamp(1.5rem, 7vw, 2.2rem); }
+}
+
+@media (max-width: 480px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .ftp-right { flex-direction: column; gap: 10px; }
+  .workouts-grid { grid-template-columns: 1fr; }
+  .guide-steps { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── ANIMATIONS ── */
 @keyframes fadeUp {
-  from { opacity:0; transform:translateY(16px); }
+  from { opacity:0; transform:translateY(14px); }
   to   { opacity:1; transform:translateY(0); }
 }
-.fade-in { animation: fadeUp 0.4s ease forwards; }
+
+.fade-in { animation: fadeUp 0.38s ease forwards; }
+
+@keyframes glow-pulse {
+  0%,100% { text-shadow: 0 0 40px rgba(0,229,255,0.2); }
+  50%      { text-shadow: 0 0 80px rgba(0,229,255,0.5); }
+}
+
+.ftp-big { animation: glow-pulse 3s ease-in-out infinite; }
+
+/* ── AUTH OVERLAY ── */
+.auth-overlay {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 420px;
+  background: var(--s2);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  padding: 40px 36px;
+  animation: fadeUp 0.35s ease forwards;
+}
+
+.auth-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.auth-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+
+.auth-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted2);
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  color: var(--muted2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+
+.auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.auth-field { margin-bottom: 16px; }
+
+.auth-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--muted2);
+  letter-spacing: 1.5px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.auth-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  color: var(--white);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  padding: 11px 14px;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.18s;
+  min-height: 44px;
+}
+
+.auth-input:focus { border-color: var(--accent); }
+
+.auth-btn {
+  width: 100%;
+  margin-top: 8px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 3px;
+  padding: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.18s;
+  min-height: 48px;
+}
+
+.auth-btn:hover { background: #33eaff; }
+.auth-btn:disabled { background: var(--border2); color: var(--muted); cursor: not-allowed; }
+
+.auth-error {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  color: #ff4466;
+  margin-top: 10px;
+  text-align: center;
+  min-height: 18px;
+}
+
+.auth-success {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--accent3);
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* ── USER PILL in sidebar ── */
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  cursor: default;
+}
+
+.user-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent4));
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #000;
+  flex-shrink: 0;
+}
+
+.user-email {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.logout-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.14s;
+  min-height: 28px;
+}
+
+.logout-btn:hover { color: #ff4466; background: rgba(255,68,102,0.1); }
+
+/* ── SYNC STATUS ── */
+.sync-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sync-badge.synced  { background: rgba(168,255,62,0.1); color: var(--accent3); }
+.sync-badge.saving  { background: rgba(0,229,255,0.1);  color: var(--accent); }
+.sync-badge.offline { background: rgba(90,90,150,0.15); color: var(--muted2); }
 </style>
 </head>
 <body>
+<!-- ── AUTH OVERLAY ── -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+        <polygon points="18,2 32,10 32,26 18,34 4,26 4,10" fill="#0e1a2e" stroke="#00e5ff" stroke-width="1.5"/>
+        <path d="M21 5 L13 19 H19 L15 31 L26 15 H20 Z" fill="#00e5ff"/>
+      </svg>
+      <div>
+        <div class="auth-title">FTP LAB</div>
+        <div class="auth-sub">// v3.0 · Análisis de potencia</div>
+      </div>
+    </div>
+
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">ENTRAR</div>
+      <div class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">REGISTRARSE</div>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="formLogin">
+      <div class="auth-field">
+        <label class="auth-label">// EMAIL</label>
+        <input type="email" class="auth-input" id="loginEmail" placeholder="tu@email.com" autocomplete="email">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">// CONTRASEÑA</label>
+        <input type="password" class="auth-input" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="auth-btn" id="loginBtn" onclick="doLogin()">ENTRAR →</button>
+      <div class="auth-error" id="loginError"></div>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="formRegister" style="display:none">
+      <div class="auth-field">
+        <label class="auth-label">// NOMBRE</label>
+        <input type="text" class="auth-input" id="regName" placeholder="Tu nombre">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">// EMAIL</label>
+        <input type="email" class="auth-input" id="regEmail" placeholder="tu@email.com" autocomplete="email">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">// CONTRASEÑA</label>
+        <input type="password" class="auth-input" id="regPass" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">// PESO INICIAL (kg)</label>
+        <input type="number" class="auth-input" id="regWeight" value="70" min="40" max="150">
+      </div>
+      <button class="auth-btn" id="registerBtn" onclick="doRegister()">CREAR CUENTA →</button>
+      <div class="auth-error" id="registerError"></div>
+      <div class="auth-success" id="registerSuccess" style="display:none">✓ Cuenta creada. Revisa tu email para confirmar.</div>
+    </div>
+  </div>
+</div>
+
 <div class="app">
 
-<!-- SIDEBAR -->
+<!-- ── SIDEBAR (desktop) ── -->
 <nav class="sidebar">
   <div class="logo-wrap">
-    <div class="logo">FTP LAB</div>
-    <div class="logo-sub">// v2.0</div>
+    <!-- Logomark: hexagon + lightning bolt -->
+    <svg class="logomark" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="18,2 32,10 32,26 18,34 4,26 4,10"
+               fill="#0e1a2e" stroke="#00e5ff" stroke-width="1.5"/>
+      <polygon points="18,2 32,10 32,26 18,34 4,26 4,10"
+               fill="url(#hexGrad)" opacity="0.5"/>
+      <path d="M21 5 L13 19 H19 L15 31 L26 15 H20 Z"
+            fill="#00e5ff" filter="url(#glow)"/>
+      <defs>
+        <linearGradient id="hexGrad" x1="4" y1="2" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="1.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+    </svg>
+    <div class="logo-text-wrap">
+      <div class="logo">FTP LAB</div>
+      <div class="logo-sub">// v3.0</div>
+    </div>
   </div>
   <div class="nav">
-    <div class="nav-item active" onclick="showPage('upload')">
+    <div class="nav-item active" data-page="upload" onclick="showPage('upload')">
       <span class="nav-icon">⚡</span><span>Analizar</span>
     </div>
-    <div class="nav-item" onclick="showPage('dashboard')" id="navDash">
+    <div class="nav-item" data-page="dashboard" onclick="showPage('dashboard')">
       <span class="nav-icon">📊</span><span>Dashboard</span>
     </div>
-    <div class="nav-item" onclick="showPage('curve')" id="navCurve">
+    <div class="nav-item" data-page="curve" onclick="showPage('curve')">
       <span class="nav-icon">📈</span><span>Curva Potencia</span>
     </div>
-    <div class="nav-item" onclick="showPage('history')" id="navHistory">
+    <div class="nav-item" data-page="history" onclick="showPage('history')">
       <span class="nav-icon">🕓</span><span>Histórico FTP</span>
     </div>
-    <div class="nav-item" onclick="showPage('workouts')" id="navWorkouts">
+    <div class="nav-item" data-page="workouts" onclick="showPage('workouts')">
       <span class="nav-icon">🎯</span><span>Workouts</span>
     </div>
   </div>
   <div class="sidebar-footer">
-    <div class="version-tag">FTP LAB v2.0<br>© 2025 · Local-only</div>
+    <div class="user-pill" id="userPill" style="display:none">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <div class="user-email" id="userEmailLabel">—</div>
+      <button class="logout-btn" onclick="doLogout()" title="Cerrar sesión">⏏</button>
+    </div>
+    <div id="syncStatus"></div>
+    <div class="version-tag">FTP LAB v3.0<br>© 2025 · Powered by Supabase</div>
   </div>
 </nav>
 
-<!-- MAIN -->
+<!-- ── MAIN ── -->
 <main class="main">
 
   <!-- PAGE: UPLOAD -->
@@ -748,7 +1169,7 @@ canvas { width:100% !important; }
     <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
       <span class="upload-icon">⚡</span>
       <div class="upload-title">SUBIR ARCHIVOS .FIT</div>
-      <p class="upload-hint">Arrastra aquí · o haz click · <strong>Varios archivos a la vez</strong></p>
+      <p class="upload-hint">Arrastra aquí · o haz click<br><strong>Varios archivos a la vez</strong></p>
       <input type="file" id="fileInput" accept=".fit,.csv" multiple>
     </div>
 
@@ -782,19 +1203,19 @@ canvas { width:100% !important; }
         <div class="page-title">DASH<span>BOARD</span></div>
         <div class="page-sub" id="dash-sub">// Sesión actual</div>
       </div>
-      <button class="analyze-btn" onclick="showPage('upload')" style="font-size:0.8rem;padding:8px 18px;">+ NUEVA SESIÓN</button>
+      <button class="analyze-btn" onclick="showPage('upload')" style="font-size:0.78rem;padding:8px 16px;min-height:40px;">+ NUEVA SESIÓN</button>
     </div>
 
     <!-- FTP HERO -->
     <div class="ftp-hero fade-in">
-      <div>
+      <div class="ftp-left">
         <div class="ftp-label-big">// FTP ESTIMADO</div>
         <div class="ftp-big" id="ftpBig">—</div>
         <div class="ftp-unit-big">VATIOS</div>
       </div>
       <div class="divider-v"></div>
       <div class="ftp-right">
-        <div>
+        <div class="wkg-wrap">
           <div class="ftp-label-big">// W/KG</div>
           <div class="wkg-big" id="wkgBig">—</div>
         </div>
@@ -802,26 +1223,23 @@ canvas { width:100% !important; }
       </div>
     </div>
 
-    <!-- STATS -->
     <div class="sec-title">RESUMEN DE SESIÓN</div>
     <div class="stats-row">
       <div class="card"><div class="card-label">Mejor 20 min</div><div class="card-value" id="sBest20">—</div><div class="card-unit">vatios</div></div>
       <div class="card"><div class="card-label">Potencia media</div><div class="card-value" id="sAvg">—</div><div class="card-unit">vatios</div></div>
       <div class="card"><div class="card-label">Potencia pico</div><div class="card-value" id="sMax">—</div><div class="card-unit">vatios</div></div>
-      <div class="card"><div class="card-label">Sesiones analizadas</div><div class="card-value" id="sSessions">—</div><div class="card-unit">actividades</div></div>
+      <div class="card"><div class="card-label">Sesiones</div><div class="card-value" id="sSessions">—</div><div class="card-unit">actividades</div></div>
       <div class="card"><div class="card-label">Tiempo total</div><div class="card-value" id="sTime">—</div><div class="card-unit">horas</div></div>
       <div class="card"><div class="card-label">TSS estimado</div><div class="card-value" id="sTSS">—</div><div class="card-unit">Training Stress Score</div></div>
     </div>
 
-    <!-- ZONES -->
     <div class="sec-title">DISTRIBUCIÓN DE ZONAS</div>
     <div class="card">
       <div class="zones-wrap" id="zonesWrap"></div>
     </div>
 
-    <!-- PROFILE TABLE -->
     <div class="sec-title">PERFIL W/KG · ESTÁNDARES INTERNACIONALES</div>
-    <div class="card">
+    <div class="card" style="overflow-x:auto;">
       <table class="profile-table" id="profileTable"></table>
     </div>
   </div>
@@ -835,7 +1253,7 @@ canvas { width:100% !important; }
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:24px;">
+    <div class="card" style="margin-bottom:20px;">
       <div class="curve-container">
         <canvas id="curveCanvas"></canvas>
       </div>
@@ -846,7 +1264,7 @@ canvas { width:100% !important; }
 
     <div class="sec-title">INTERPRETACIÓN</div>
     <div class="card" id="curveInterpret">
-      <p style="font-size:0.82rem;color:var(--muted2);line-height:1.7;">Analiza tu sesión para ver la interpretación de tu curva de potencia.</p>
+      <p style="font-size:0.8rem;color:var(--muted2);line-height:1.75;">Analiza tu sesión para ver la interpretación de tu curva de potencia.</p>
     </div>
   </div>
 
@@ -857,10 +1275,10 @@ canvas { width:100% !important; }
         <div class="page-title">HISTÓRICO <span>FTP</span></div>
         <div class="page-sub">// Progresión de tu umbral de potencia</div>
       </div>
-      <button class="analyze-btn" onclick="clearHistory()" style="font-size:0.8rem;padding:8px 18px;background:none;border:1px solid var(--border2);color:var(--muted2);">BORRAR TODO</button>
+      <button class="analyze-btn" onclick="clearHistory()" style="font-size:0.75rem;padding:8px 16px;min-height:40px;background:none;border:1px solid var(--border2);color:var(--muted2);">BORRAR TODO</button>
     </div>
 
-    <div class="card" style="margin-bottom:24px;" id="historyChartWrap">
+    <div class="card" style="margin-bottom:20px;" id="historyChartWrap">
       <div class="history-container">
         <canvas id="historyCanvas"></canvas>
       </div>
@@ -871,13 +1289,7 @@ canvas { width:100% !important; }
         <table class="history-table">
           <thead>
             <tr>
-              <th>FECHA</th>
-              <th>FTP (W)</th>
-              <th>W/KG</th>
-              <th>PESO</th>
-              <th>ARCHIVOS</th>
-              <th>CAMBIO</th>
-              <th></th>
+              <th>FECHA</th><th>FTP (W)</th><th>W/KG</th><th>PESO</th><th>ARCHIVOS</th><th>CAMBIO</th><th></th>
             </tr>
           </thead>
           <tbody id="historyBody"></tbody>
@@ -901,66 +1313,91 @@ canvas { width:100% !important; }
     <div class="workouts-grid" id="workoutsGrid"></div>
 
     <div class="sec-title">PLAN SEMANAL SUGERIDO</div>
-    <div class="card" id="weeklyPlan"></div>
+    <div class="card">
+      <div class="weekly-scroll">
+        <div class="weekly-grid" id="weeklyPlan"></div>
+      </div>
+    </div>
   </div>
 
 </main>
+
+<!-- ── BOTTOM TAB BAR (mobile) ── -->
+<nav class="tab-bar">
+  <div class="tab-bar-inner">
+    <div class="tab-item active" data-page="upload" onclick="showPage('upload')">
+      <span class="tab-icon">⚡</span>
+      <span class="tab-label">Analizar</span>
+    </div>
+    <div class="tab-item" data-page="dashboard" onclick="showPage('dashboard')">
+      <span class="tab-icon">📊</span>
+      <span class="tab-label">Dashboard</span>
+    </div>
+    <div class="tab-item" data-page="curve" onclick="showPage('curve')">
+      <span class="tab-icon">📈</span>
+      <span class="tab-label">Curva</span>
+    </div>
+    <div class="tab-item" data-page="history" onclick="showPage('history')">
+      <span class="tab-icon">🕓</span>
+      <span class="tab-label">Histórico</span>
+    </div>
+    <div class="tab-item" data-page="workouts" onclick="showPage('workouts')">
+      <span class="tab-icon">🎯</span>
+      <span class="tab-label">Workouts</span>
+    </div>
+  </div>
+</nav>
+
 </div>
 
 <script>
-// ── STATE ────────────────────────────────────────────────────────────────────
+// ── SUPABASE CONFIG ───────────────────────────────────────────────────────────
+// 🔧 REEMPLAZA ESTOS VALORES con los de tu proyecto en supabase.com → Settings → API
+const SUPABASE_URL = 'https://exqohgqxcnzevaneqnmc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_WfVMOtqa2ogNrk7Qyyh0zQ_pwAc9QEV';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
 let state = {
   analyzed: false,
-  ftp: 0,
-  wkg: 0,
-  weight: 70,
-  avgPower: 0,
-  maxPower: 0,
-  best20: 0,
-  sessions: 0,
-  durationHrs: 0,
-  tss: 0,
-  zones: [],
-  powerCurve: {},
-  powers: [],
-  fileNames: [],
+  ftp: 0, wkg: 0, weight: 70,
+  avgPower: 0, maxPower: 0, best20: 0,
+  sessions: 0, durationHrs: 0, tss: 0,
+  zones: [], powerCurve: {}, powers: [],
+  fileNames: [], bestEfforts: {}, hrs: 0,
+  avg: 0, max: 0,
 };
 
-// Load history from memory (session-only, no localStorage)
 let ftpHistory = [];
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
-  const navMap = { upload:'upload', dashboard:'navDash', curve:'navCurve', history:'navHistory', workouts:'navWorkouts' };
-  // highlight nav
-  const navItems = document.querySelectorAll('.nav-item');
-  const pageOrder = ['upload','dashboard','curve','history','workouts'];
-  const idx = pageOrder.indexOf(id);
-  if (navItems[idx]) navItems[idx].classList.add('active');
+  document.getElementById('page-' + id).classList.add('active');
+
+  // Sync sidebar + tab bar
+  document.querySelectorAll('[data-page]').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll(`[data-page="${id}"]`).forEach(el => el.classList.add('active'));
 
   if (id === 'history') renderHistory();
   if (id === 'curve' && state.analyzed) renderCurve();
   if (id === 'workouts' && state.analyzed) renderWorkouts();
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ── FIT PARSER ───────────────────────────────────────────────────────────────
+// ── FIT PARSER ────────────────────────────────────────────────────────────────
 class FITParser {
   constructor(buffer) {
     this.dv = new DataView(buffer);
-    this.pos = 0;
-    this.records = [];
-    this.defs = {};
+    this.pos = 0; this.records = []; this.defs = {};
   }
-
   u8()  { return this.dv.getUint8(this.pos++); }
   u16() { const v=this.dv.getUint16(this.pos,true); this.pos+=2; return v; }
   u32() { const v=this.dv.getUint32(this.pos,true); this.pos+=4; return v; }
   i8()  { return this.dv.getInt8(this.pos++); }
-  i16() { const v=this.dv.getInt16(this.pos,true); this.pos+=2; return v; }
-  i32() { const v=this.dv.getInt32(this.pos,true); this.pos+=4; return v; }
   skip(n) { this.pos+=n; }
 
   readField(f, le) {
@@ -974,9 +1411,8 @@ class FITParser {
   parse() {
     const hdrSz=this.u8(); this.u8(); this.u16();
     const dataSz=this.u32();
-    this.skip(4); // magic
-    if(hdrSz===14) this.u16(); // CRC
-
+    this.skip(4);
+    if(hdrSz===14) this.u16();
     const end=this.pos+dataSz;
     while(this.pos<end-1) {
       try {
@@ -989,7 +1425,7 @@ class FITParser {
           const gmn=arch===0?this.u16():(this.dv.getUint8(this.pos++)<<8|this.dv.getUint8(this.pos++));
           const nf=this.u8();
           const fields=[];
-          for(let i=0;i<nf;i++) {
+          for(let i=0;i<nf;i++){
             const fd=this.u8(), sz=this.u8(), bt=this.u8();
             fields.push({fd,size:sz,baseType:bt});
           }
@@ -998,9 +1434,9 @@ class FITParser {
           const d=this.defs[lmt];
           if(!d){this.pos++;continue;}
           const rec={};
-          for(const f of d.fields) {
+          for(const f of d.fields){
             const v=this.readField(f,d.le);
-            if(d.gmn===20) {
+            if(d.gmn===20){
               if(f.fd===7)   rec.power=v;
               if(f.fd===6)   rec.speed=v;
               if(f.fd===3)   rec.hr=v;
@@ -1016,19 +1452,17 @@ class FITParser {
   }
 }
 
-// ── ANALYSIS ─────────────────────────────────────────────────────────────────
+// ── ANALYSIS ──────────────────────────────────────────────────────────────────
 function analyze(allRecords, weight) {
   const powers = allRecords.map(r=>r.power).filter(p=>p>0&&p<2500);
   if(powers.length<60) return null;
 
   const avg = Math.round(powers.reduce((a,b)=>a+b,0)/powers.length);
   const max = Math.max(...powers);
-
-  // Rolling best efforts
   const durations = [5,10,30,60,120,300,600,1200,1800,3600];
   const bestEfforts = {};
   durations.forEach(d => {
-    if(powers.length>=d) {
+    if(powers.length>=d){
       let win=powers.slice(0,d).reduce((a,b)=>a+b,0);
       let best=win;
       for(let i=d;i<powers.length;i++){
@@ -1036,9 +1470,7 @@ function analyze(allRecords, weight) {
         if(win>best) best=win;
       }
       bestEfforts[d]=Math.round(best/d);
-    } else {
-      bestEfforts[d]=Math.round(avg*1.02);
-    }
+    } else { bestEfforts[d]=Math.round(avg*1.02); }
   });
 
   const best20=bestEfforts[1200]||Math.round(avg*1.05);
@@ -1046,19 +1478,18 @@ function analyze(allRecords, weight) {
   const wkg=+(ftp/weight).toFixed(2);
   const hrs=powers.length/3600;
 
-  // Zones
   const zDefs=[
-    {name:'Z1 · Recuperación',max:0.55,color:'#3a3a8a'},
-    {name:'Z2 · Resistencia', max:0.75,color:'#5050cc'},
-    {name:'Z3 · Tempo',       max:0.90,color:'#00e5ff'},
-    {name:'Z4 · Umbral',      max:1.05,color:'#a8ff3e'},
-    {name:'Z5 · VO2max',      max:1.20,color:'#ff6b35'},
-    {name:'Z6 · Anaeróbico',  max:999, color:'#ff2255'},
+    {name:'Z1 · Recuperación', max:0.55, color:'#3a3a8a'},
+    {name:'Z2 · Resistencia',  max:0.75, color:'#5050cc'},
+    {name:'Z3 · Tempo',        max:0.90, color:'#00e5ff'},
+    {name:'Z4 · Umbral',       max:1.05, color:'#a8ff3e'},
+    {name:'Z5 · VO2max',       max:1.20, color:'#ff6b35'},
+    {name:'Z6 · Anaeróbico',   max:999,  color:'#ff2255'},
   ];
   zDefs.forEach(z=>z.time=0);
   powers.forEach(p=>{
     const pct=p/ftp;
-    for(const z of zDefs) { if(pct<=z.max){z.time++;break;} }
+    for(const z of zDefs){if(pct<=z.max){z.time++;break;}}
   });
   const tot=powers.length;
   zDefs.forEach(z=>z.pct=Math.round(z.time/tot*100));
@@ -1087,17 +1518,17 @@ function demoData() {
 
 // ── PROFILE LEVELS ────────────────────────────────────────────────────────────
 const levels = [
-  {name:'Sin entrenar',   color:'#444466', men:[0,2.0],   women:[0,1.6]},
-  {name:'Regular',        color:'#5555aa', men:[2.0,2.5], women:[1.6,2.1]},
-  {name:'Intermedio',     color:'#00e5ff', men:[2.5,3.0], women:[2.1,2.6]},
-  {name:'Bueno',          color:'#a8ff3e', men:[3.0,3.5], women:[2.6,3.1]},
-  {name:'Muy bueno',      color:'#ff6b35', men:[3.5,4.0], women:[3.1,3.5]},
-  {name:'Excelente',      color:'#ff2255', men:[4.0,4.5], women:[3.5,4.0]},
-  {name:'Élite',          color:'#ff00ff', men:[4.5,99],  women:[4.0,99]},
+  {name:'Sin entrenar', color:'#444466', men:[0,2.0],   women:[0,1.6]},
+  {name:'Regular',      color:'#5555aa', men:[2.0,2.5], women:[1.6,2.1]},
+  {name:'Intermedio',   color:'#00e5ff', men:[2.5,3.0], women:[2.1,2.6]},
+  {name:'Bueno',        color:'#a8ff3e', men:[3.0,3.5], women:[2.6,3.1]},
+  {name:'Muy bueno',    color:'#ff6b35', men:[3.5,4.0], women:[3.1,3.5]},
+  {name:'Excelente',    color:'#ff2255', men:[4.0,4.5], women:[3.5,4.0]},
+  {name:'Élite',        color:'#c77dff', men:[4.5,99],  women:[4.0,99]},
 ];
 
 function getLevel(wkg) {
-  return levels.find(l=>wkg>=l.men[0]&&wkg<l.men[1]) || levels[0];
+  return levels.find(l=>wkg>=l.men[0]&&wkg<l.men[1])||levels[0];
 }
 
 // ── RENDER DASHBOARD ──────────────────────────────────────────────────────────
@@ -1121,12 +1552,11 @@ function renderDashboard() {
   document.getElementById('sTime').textContent=s.hrs.toFixed(1);
   document.getElementById('sTSS').textContent=s.tss;
 
-  // Zones
   const zw=document.getElementById('zonesWrap');
   zw.innerHTML=s.zones.map(z=>`
     <div class="zone-row">
       <div class="zone-name">${z.name}</div>
-      <div class="zone-bar-bg"><div class="zone-bar-fill" style="width:0%;background:${z.color}" data-pct="${z.pct}"></div></div>
+      <div class="zone-bar-bg"><div class="zone-bar-fill" style="background:${z.color}" data-pct="${z.pct}"></div></div>
       <div class="zone-pct">${z.pct}%</div>
     </div>
   `).join('');
@@ -1136,16 +1566,15 @@ function renderDashboard() {
     });
   },100);
 
-  // Profile table
   const tbl=document.getElementById('profileTable');
-  tbl.innerHTML=`<thead><tr><th>NIVEL</th><th>W/KG (HOMBRE)</th><th>W/KG (MUJER)</th><th>TÚ</th></tr></thead><tbody>
+  tbl.innerHTML=`<thead><tr><th>NIVEL</th><th>W/KG (H)</th><th>W/KG (M)</th><th>TÚ</th></tr></thead><tbody>
   ${levels.map(l=>{
     const isCurrent=s.wkg>=l.men[0]&&s.wkg<l.men[1];
     return `<tr class="${isCurrent?'current-row':''}">
       <td><span class="level-dot" style="background:${l.color}"></span>${l.name}${isCurrent?' ← TÚ':''}</td>
       <td>${l.men[0]}–${l.men[1]===99?'∞':l.men[1]}</td>
       <td>${l.women[0]}–${l.women[1]===99?'∞':l.women[1]}</td>
-      <td>${isCurrent?'<span style="color:'+l.color+'">'+s.wkg+'</span>':''}</td>
+      <td>${isCurrent?`<span style="color:${l.color};font-weight:500">${s.wkg}</span>`:''}</td>
     </tr>`;
   }).join('')}</tbody>`;
 }
@@ -1154,7 +1583,7 @@ function renderDashboard() {
 function renderCurve() {
   const canvas=document.getElementById('curveCanvas');
   const ctx=canvas.getContext('2d');
-  const W=canvas.parentElement.clientWidth-48;
+  const W=canvas.parentElement.clientWidth-44;
   const H=280;
   canvas.width=W; canvas.height=H;
 
@@ -1163,78 +1592,63 @@ function renderCurve() {
   const values=durations.map(d=>state.bestEfforts[d]||0);
   const maxV=Math.max(...values)*1.1;
 
-  const pad={top:20,right:20,bottom:40,left:55};
+  const pad={top:20,right:20,bottom:40,left:52};
   const cW=W-pad.left-pad.right;
   const cH=H-pad.top-pad.bottom;
 
   ctx.clearRect(0,0,W,H);
 
-  // Grid
-  ctx.strokeStyle='#1c1c2e';
-  ctx.lineWidth=1;
   for(let i=0;i<=5;i++){
     const y=pad.top+cH*(1-i/5);
+    ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cW,y); ctx.stroke();
-    ctx.fillStyle='#4a4a6a';
-    ctx.font='11px IBM Plex Mono, monospace';
-    ctx.fillText(Math.round(maxV*i/5)+'W',4,y+4);
+    ctx.fillStyle='#3e3e5e';
+    ctx.font='10px IBM Plex Mono, monospace';
+    ctx.fillText(Math.round(maxV*i/5)+'W', 2, y+4);
   }
 
-  // Gradient fill
   const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+cH);
-  grad.addColorStop(0,'rgba(0,229,255,0.3)');
+  grad.addColorStop(0,'rgba(0,229,255,0.28)');
   grad.addColorStop(1,'rgba(0,229,255,0)');
 
   const points=durations.map((d,i)=>({
-    x: pad.left + (i/(durations.length-1))*cW,
-    y: pad.top + cH*(1-values[i]/maxV)
+    x: pad.left+(i/(durations.length-1))*cW,
+    y: pad.top+cH*(1-values[i]/maxV)
   }));
 
-  // Fill
   ctx.beginPath();
-  ctx.moveTo(points[0].x, pad.top+cH);
+  ctx.moveTo(points[0].x,pad.top+cH);
   points.forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.lineTo(points[points.length-1].x, pad.top+cH);
+  ctx.lineTo(points[points.length-1].x,pad.top+cH);
   ctx.closePath();
-  ctx.fillStyle=grad;
-  ctx.fill();
+  ctx.fillStyle=grad; ctx.fill();
 
-  // Line
   ctx.beginPath();
   ctx.moveTo(points[0].x,points[0].y);
   points.forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.strokeStyle='#00e5ff';
-  ctx.lineWidth=2.5;
-  ctx.stroke();
+  ctx.strokeStyle='#00e5ff'; ctx.lineWidth=2.5; ctx.stroke();
 
-  // FTP line
   const ftpY=pad.top+cH*(1-state.ftp/maxV);
   ctx.beginPath(); ctx.moveTo(pad.left,ftpY); ctx.lineTo(pad.left+cW,ftpY);
-  ctx.strokeStyle='rgba(168,255,62,0.4)';
-  ctx.lineWidth=1;
-  ctx.setLineDash([5,5]);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(168,255,62,0.4)'; ctx.lineWidth=1;
+  ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle='#a8ff3e';
   ctx.font='10px IBM Plex Mono, monospace';
   ctx.fillText('FTP '+state.ftp+'W', pad.left+4, ftpY-5);
 
-  // Dots + labels
   points.forEach((p,i)=>{
     ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2);
     ctx.fillStyle='#00e5ff'; ctx.fill();
-    ctx.fillStyle='#4a4a6a';
+    ctx.fillStyle='#3e3e5e';
     ctx.font='10px IBM Plex Mono, monospace';
     ctx.textAlign='center';
     ctx.fillText(labels[i], p.x, pad.top+cH+16);
     ctx.textAlign='left';
   });
 
-  // Best efforts cards
   const keyDurations=[60,300,1200,3600];
   const keyLabels=['1 minuto','5 minutos','20 minutos','1 hora'];
-  const be=document.getElementById('bestEfforts');
-  be.innerHTML=keyDurations.map((d,i)=>`
+  document.getElementById('bestEfforts').innerHTML=keyDurations.map((d,i)=>`
     <div class="card">
       <div class="card-label">MEJOR ${keyLabels[i].toUpperCase()}</div>
       <div class="card-value">${state.bestEfforts[d]||'—'}</div>
@@ -1242,16 +1656,15 @@ function renderCurve() {
     </div>
   `).join('');
 
-  // Interpretation
-  const p5=state.bestEfforts[300], p20=state.bestEfforts[1200], p60=state.bestEfforts[3600];
+  const p5=state.bestEfforts[300], p20=state.bestEfforts[1200];
   let profile='';
-  if(p5&&p20) {
+  if(p5&&p20){
     const ratio=p5/p20;
     if(ratio>1.3) profile='Tu perfil indica un <strong style="color:var(--accent2)">ciclista de esfuerzos cortos / sprinter</strong>. Tu potencia anaeróbica es alta en relación al umbral. Beneficiarías de más trabajo en Z4/Z5 para elevar el FTP.';
     else if(ratio>1.15) profile='Perfil <strong style="color:var(--accent)">equilibrado</strong> entre potencia corta y resistencia. Buena base aeróbica con capacidad anaeróbica funcional.';
     else profile='Perfil de <strong style="color:var(--accent3)">rodador / escalador</strong>. Tu potencia se mantiene muy bien en esfuerzos largos. FTP cercano a la potencia de 5 min indica excelente eficiencia aeróbica.';
   }
-  document.getElementById('curveInterpret').innerHTML=`<p style="font-size:0.85rem;color:var(--muted2);line-height:1.8;">${profile||'Analiza más sesiones para una interpretación detallada.'}</p>`;
+  document.getElementById('curveInterpret').innerHTML=`<p style="font-size:0.82rem;color:var(--muted2);line-height:1.8;">${profile||'Analiza más sesiones para una interpretación detallada.'}</p>`;
 }
 
 // ── HISTORY ───────────────────────────────────────────────────────────────────
@@ -1260,8 +1673,7 @@ function renderHistory() {
   const empty=document.getElementById('historyEmpty');
 
   if(ftpHistory.length===0){
-    body.innerHTML='';
-    empty.style.display='block';
+    body.innerHTML=''; empty.style.display='block';
     document.getElementById('historyChartWrap').style.display='none';
     return;
   }
@@ -1269,7 +1681,8 @@ function renderHistory() {
   empty.style.display='none';
   document.getElementById('historyChartWrap').style.display='block';
 
-  body.innerHTML=ftpHistory.map((h,i)=>{
+  body.innerHTML=[...ftpHistory].reverse().map((h,ri)=>{
+    const i=ftpHistory.length-1-ri;
     const prev=ftpHistory[i-1];
     const diff=prev?h.ftp-prev.ftp:null;
     const trendClass=diff===null?'':diff>0?'trend-up':diff<0?'trend-down':'trend-flat';
@@ -1279,43 +1692,38 @@ function renderHistory() {
       <td style="color:var(--accent);font-weight:500">${h.ftp}</td>
       <td style="color:var(--accent2)">${h.wkg}</td>
       <td>${h.weight} kg</td>
-      <td style="color:var(--muted2)">${h.files}</td>
+      <td style="color:var(--muted2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.files}</td>
       <td class="${trendClass}">${trendText}</td>
       <td><button class="delete-btn" onclick="deleteHistory(${i})">✕</button></td>
     </tr>`;
-  }).reverse().join('');
+  }).join('');
 
-  // History chart
   const canvas=document.getElementById('historyCanvas');
   const ctx=canvas.getContext('2d');
-  const W=canvas.parentElement.clientWidth-48;
-  const H=220;
+  const W=canvas.parentElement.clientWidth-44;
+  const H=200;
   canvas.width=W; canvas.height=H;
 
   if(ftpHistory.length<2){
-    ctx.fillStyle='var(--muted2)';
-    ctx.font='13px IBM Plex Mono, monospace';
-    ctx.fillText('Necesitas al menos 2 sesiones para ver la gráfica', W/2-160, H/2);
+    ctx.fillStyle='#3e3e5e';
+    ctx.font='12px IBM Plex Mono, monospace';
+    ctx.fillText('Necesitas al menos 2 sesiones para ver la gráfica', 20, H/2);
     return;
   }
 
   const ftps=ftpHistory.map(h=>h.ftp);
-  const minF=Math.min(...ftps)*0.95;
-  const maxF=Math.max(...ftps)*1.05;
-  const pad={top:20,right:20,bottom:30,left:55};
-  const cW=W-pad.left-pad.right;
-  const cH=H-pad.top-pad.bottom;
-
+  const minF=Math.min(...ftps)*0.95, maxF=Math.max(...ftps)*1.05;
+  const pad={top:20,right:20,bottom:30,left:52};
+  const cW=W-pad.left-pad.right, cH=H-pad.top-pad.bottom;
   ctx.clearRect(0,0,W,H);
 
-  // Grid
   for(let i=0;i<=4;i++){
     const y=pad.top+cH*(1-i/4);
-    ctx.strokeStyle='#1c1c2e'; ctx.lineWidth=1;
+    ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cW,y); ctx.stroke();
-    ctx.fillStyle='#4a4a6a';
+    ctx.fillStyle='#3e3e5e';
     ctx.font='10px IBM Plex Mono, monospace';
-    ctx.fillText(Math.round(minF+(maxF-minF)*i/4)+'W', 4, y+4);
+    ctx.fillText(Math.round(minF+(maxF-minF)*i/4)+'W', 2, y+4);
   }
 
   const pts=ftpHistory.map((h,i)=>({
@@ -1323,7 +1731,6 @@ function renderHistory() {
     y: pad.top+cH*(1-(h.ftp-minF)/(maxF-minF))
   }));
 
-  // Fill
   const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+cH);
   grad.addColorStop(0,'rgba(168,255,62,0.2)');
   grad.addColorStop(1,'rgba(168,255,62,0)');
@@ -1334,12 +1741,10 @@ function renderHistory() {
   ctx.closePath();
   ctx.fillStyle=grad; ctx.fill();
 
-  // Line
   ctx.beginPath();
   pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
   ctx.strokeStyle='#a8ff3e'; ctx.lineWidth=2.5; ctx.stroke();
 
-  // Dots
   pts.forEach((p,i)=>{
     ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2);
     ctx.fillStyle='#a8ff3e'; ctx.fill();
@@ -1351,45 +1756,51 @@ function renderHistory() {
   });
 }
 
-function deleteHistory(i) {
+async function deleteHistory(i) {
+  const entry = ftpHistory[i];
+  if (entry?.id) await deleteFtpEntry(entry.id);
   ftpHistory.splice(i,1);
   renderHistory();
 }
 
-function clearHistory() {
-  if(confirm('¿Borrar todo el histórico?')) { ftpHistory=[]; renderHistory(); }
+async function clearHistory() {
+  if(!confirm('¿Borrar todo el histórico?')) return;
+  if (currentUser) {
+    await sb.from('ftp_history').delete().eq('user_id', currentUser.id);
+  }
+  ftpHistory=[]; renderHistory();
 }
 
-// ── WORKOUTS ─────────────────────────────────────────────────────────────────
+// ── WORKOUTS ──────────────────────────────────────────────────────────────────
 function renderWorkouts() {
   const ftp=state.ftp;
   document.getElementById('workoutSub').textContent=`// FTP: ${ftp}W · ${state.wkg} W/kg`;
 
   const workouts=[
-    { tag:'tag-ss',  tagLabel:'SWEET SPOT',  name:'SST Classic',
+    { tagLabel:'SWEET SPOT', name:'SST Classic',
       desc:'El workout más efectivo para subir FTP. Alta densidad de trabajo entre Z3 y Z4. Máximo estímulo de adaptación con fatiga manejable.',
       pills:[`3×12 min @ ${Math.round(ftp*.90)}W`,`Descanso 5 min @ ${Math.round(ftp*.55)}W`],
-      tagColor:'rgba(0,229,255,0.15)','tagC':'#00e5ff' },
-    { tag:'tag-ou',  tagLabel:'OVER-UNDER',  name:'Over-Under',
+      tagColor:'rgba(0,229,255,0.15)', tagC:'#00e5ff' },
+    { tagLabel:'OVER-UNDER', name:'Over-Under',
       desc:'Alterna por encima y por debajo del FTP. Entrena la tolerancia al lactato y la capacidad de recuperación sin bajar intensidad.',
       pills:[`5×(3 min @ ${Math.round(ftp*1.05)}W + 3 min @ ${Math.round(ftp*.95)}W)`,`Descanso 8 min @ ${Math.round(ftp*.5)}W`],
-      tagColor:'rgba(168,255,62,0.15)',tagC:'#a8ff3e' },
-    { tag:'tag-vo2', tagLabel:'VO2MAX',       name:'Tabata Potencia',
+      tagColor:'rgba(168,255,62,0.15)', tagC:'#a8ff3e' },
+    { tagLabel:'VO2MAX', name:'Tabata Potencia',
       desc:'Intervalos cortos a alta intensidad para elevar tu VO2max. Eleva el "techo" aeróbico que luego permite subir el FTP.',
       pills:[`6×5 min @ ${Math.round(ftp*1.15)}W`,`Descanso 5 min @ ${Math.round(ftp*.5)}W`],
-      tagColor:'rgba(255,107,53,0.15)',tagC:'#ff6b35' },
-    { tag:'tag-end', tagLabel:'RESISTENCIA',  name:'Tempo Progresivo',
+      tagColor:'rgba(255,107,53,0.15)', tagC:'#ff6b35' },
+    { tagLabel:'RESISTENCIA', name:'Tempo Progresivo',
       desc:'Rodaje largo con progresión de intensidad. Construye la base aeróbica, eficiencia de combustión y capacidad de trabajo total.',
       pills:[`20 min @ ${Math.round(ftp*.65)}W`,`20 min @ ${Math.round(ftp*.72)}W`,`20 min @ ${Math.round(ftp*.78)}W`],
-      tagColor:'rgba(90,90,200,0.15)',tagC:'#8080f0' },
-    { tag:'tag-ramp',tagLabel:'TEST FTP',     name:'Ramp Test',
+      tagColor:'rgba(90,90,200,0.15)', tagC:'#8080f0' },
+    { tagLabel:'TEST FTP', name:'Ramp Test',
       desc:'Protocolo de 25 minutos para estimar tu FTP con precisión. Potencia máxima alcanzada × 0.75. Sin necesidad de 20 min all-out.',
       pills:['8 min calentamiento','Ramp: +20W cada 1 min','Hasta el fallo · FTP = pico × 0.75'],
-      tagColor:'rgba(255,34,85,0.15)',tagC:'#ff2255' },
-    { tag:'tag-rec', tagLabel:'RECUPERACIÓN', name:'Spin Fácil',
+      tagColor:'rgba(255,34,85,0.15)', tagC:'#ff2255' },
+    { tagLabel:'RECUPERACIÓN', name:'Spin Fácil',
       desc:'Pedaleo suave de recuperación activa. Fundamental para adaptarse entre sesiones duras. Muchos ciclistas lo ignoran y se sobre-entrenan.',
-      pills:[`60 min @ ${Math.round(ftp*.5)}–${Math.round(ftp*.55)}W`,`Cadencia alta: 90-100 rpm`],
-      tagColor:'rgba(50,50,100,0.3)',tagC:'#5a5aaa' },
+      pills:[`60 min @ ${Math.round(ftp*.5)}–${Math.round(ftp*.55)}W`,'Cadencia alta: 90-100 rpm'],
+      tagColor:'rgba(50,50,100,0.3)', tagC:'#5a5aaa' },
   ];
 
   document.getElementById('workoutsGrid').innerHTML=workouts.map(w=>`
@@ -1401,35 +1812,210 @@ function renderWorkouts() {
     </div>
   `).join('');
 
-  // Weekly plan
   const days=[
-    {day:'LUN',w:'Descanso o movilidad',color:'#3a3a6a'},
-    {day:'MAR',w:`SST Classic · ${Math.round(ftp*.9)}W`,color:'#00e5ff'},
-    {day:'MIE',w:`Spin Fácil · ${Math.round(ftp*.52)}W`,color:'#3a3a6a'},
-    {day:'JUE',w:`Over-Under · ${Math.round(ftp*1.0)}W`,color:'#a8ff3e'},
-    {day:'VIE',w:'Descanso',color:'#3a3a6a'},
-    {day:'SAB',w:`Tempo Progresivo · 60–90 min`,color:'#8080f0'},
-    {day:'DOM',w:`Rodaje largo Z2 · ${Math.round(ftp*.68)}W`,color:'#5050cc'},
+    {day:'LUN', w:'Descanso o movilidad',                         color:'#3a3a6a'},
+    {day:'MAR', w:`SST Classic<br>${Math.round(ftp*.9)}W`,        color:'#00e5ff'},
+    {day:'MIÉ', w:`Spin Fácil<br>${Math.round(ftp*.52)}W`,        color:'#3a3a6a'},
+    {day:'JUE', w:`Over-Under<br>${Math.round(ftp*1.0)}W`,        color:'#a8ff3e'},
+    {day:'VIE', w:'Descanso',                                      color:'#3a3a6a'},
+    {day:'SÁB', w:'Tempo Prog.<br>60–90 min',                     color:'#8080f0'},
+    {day:'DOM', w:`Rodaje Z2<br>${Math.round(ftp*.68)}W`,         color:'#5050cc'},
   ];
-  document.getElementById('weeklyPlan').innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
-      ${days.map(d=>`
-        <div style="text-align:center;padding:16px 8px;background:var(--bg);border:1px solid var(--border);border-top:3px solid ${d.color};border-radius:4px">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:${d.color};letter-spacing:2px;margin-bottom:8px">${d.day}</div>
-          <div style="font-size:0.7rem;color:var(--muted2);font-family:'IBM Plex Mono',monospace;line-height:1.5">${d.w}</div>
-        </div>
-      `).join('')}
+
+  document.getElementById('weeklyPlan').innerHTML=days.map(d=>`
+    <div class="day-card" style="border-top-color:${d.color}">
+      <div class="day-label" style="color:${d.color}">${d.day}</div>
+      <div class="day-desc">${d.w}</div>
     </div>
-  `;
+  `).join('');
 }
 
-// ── FILE HANDLING ─────────────────────────────────────────────────────────────
+// ── AUTH UI ───────────────────────────────────────────────────────────────────
+function switchAuthTab(tab) {
+  document.getElementById('formLogin').style.display    = tab==='login'    ? 'block' : 'none';
+  document.getElementById('formRegister').style.display = tab==='register' ? 'block' : 'none';
+  document.getElementById('tabLogin').classList.toggle('active',    tab==='login');
+  document.getElementById('tabRegister').classList.toggle('active', tab==='register');
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  const btn   = document.getElementById('loginBtn');
+  const err   = document.getElementById('loginError');
+  err.textContent = '';
+  btn.disabled = true; btn.textContent = 'ENTRANDO...';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'ENTRAR →';
+  if (error) { err.textContent = '✕ ' + error.message; return; }
+  // onAuthStateChange handles the rest
+}
+
+async function doRegister() {
+  const name   = document.getElementById('regName').value.trim();
+  const email  = document.getElementById('regEmail').value.trim();
+  const pass   = document.getElementById('regPass').value;
+  const weight = parseFloat(document.getElementById('regWeight').value) || 70;
+  const btn    = document.getElementById('registerBtn');
+  const err    = document.getElementById('registerError');
+  const ok     = document.getElementById('registerSuccess');
+  err.textContent = ''; ok.style.display='none';
+  if (pass.length < 8) { err.textContent = '✕ La contraseña debe tener al menos 8 caracteres.'; return; }
+  btn.disabled = true; btn.textContent = 'CREANDO...';
+  const { data, error } = await sb.auth.signUp({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'CREAR CUENTA →';
+  if (error) { err.textContent = '✕ ' + error.message; return; }
+  // Update profile with name + weight after creation
+  if (data?.user) {
+    await sb.from('profiles').update({ name, weight_kg: weight }).eq('id', data.user.id);
+  }
+  ok.style.display='block';
+  setTimeout(()=>switchAuthTab('login'), 2000);
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+}
+
+// ── AUTH STATE ────────────────────────────────────────────────────────────────
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    showApp();
+    await loadUserProfile();
+    await loadFtpHistory();
+  } else {
+    currentUser = null;
+    showAuthOverlay();
+  }
+});
+
+// Check session on page load
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    showApp();
+    await loadUserProfile();
+    await loadFtpHistory();
+  } else {
+    showAuthOverlay();
+  }
+})();
+
+function showAuthOverlay() {
+  document.getElementById('authOverlay').style.display = 'flex';
+  document.getElementById('userPill').style.display    = 'none';
+}
+
+function showApp() {
+  document.getElementById('authOverlay').style.display = 'none';
+  const pill   = document.getElementById('userPill');
+  const avatar = document.getElementById('userAvatar');
+  const label  = document.getElementById('userEmailLabel');
+  pill.style.display = 'flex';
+  const email = currentUser.email || '';
+  label.textContent  = email;
+  avatar.textContent = email.charAt(0).toUpperCase();
+}
+
+// ── LOAD USER PROFILE ─────────────────────────────────────────────────────────
+async function loadUserProfile() {
+  const { data } = await sb.from('profiles').select('weight_kg').eq('id', currentUser.id).single();
+  if (data?.weight_kg) {
+    document.getElementById('weightInput').value = data.weight_kg;
+    state.weight = data.weight_kg;
+  }
+}
+
+// ── SUPABASE: LOAD FTP HISTORY ────────────────────────────────────────────────
+async function loadFtpHistory() {
+  const { data, error } = await sb
+    .from('ftp_history')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('recorded_at', { ascending: true });
+
+  if (error) { console.error('Error loading history:', error); return; }
+
+  ftpHistory = (data || []).map(row => ({
+    id:        row.id,
+    date:      new Date(row.recorded_at).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}),
+    ftp:       row.ftp_watts,
+    wkg:       row.wkg,
+    weight:    row.weight_kg,
+    files:     row.file_names || '',
+    avg:       row.avg_power,
+    max:       row.max_power,
+    best20:    row.best_20min,
+    tss:       row.tss,
+    hrs:       row.duration_h,
+    sessions:  row.sessions,
+  }));
+}
+
+// ── SUPABASE: SAVE FTP ENTRY ──────────────────────────────────────────────────
+async function saveFtpEntry(result, weight, fileNames, sessions) {
+  if (!currentUser) return;
+  setSyncStatus('saving');
+
+  const { data, error } = await sb.from('ftp_history').insert({
+    user_id:    currentUser.id,
+    ftp_watts:  result.ftp,
+    wkg:        result.wkg,
+    weight_kg:  weight,
+    file_names: fileNames.join(', '),
+    avg_power:  result.avg,
+    max_power:  result.max,
+    best_20min: result.best20,
+    tss:        result.tss,
+    duration_h: result.hrs,
+    sessions:   sessions,
+  }).select().single();
+
+  if (error) { console.error('Error saving FTP:', error); setSyncStatus('offline'); return; }
+  setSyncStatus('synced');
+
+  // Also update weight in profile
+  await sb.from('profiles').update({ weight_kg: weight, updated_at: new Date() }).eq('id', currentUser.id);
+
+  return data;
+}
+
+// ── SUPABASE: DELETE FTP ENTRY ────────────────────────────────────────────────
+async function deleteFtpEntry(id) {
+  if (!currentUser || !id) return;
+  await sb.from('ftp_history').delete().eq('id', id).eq('user_id', currentUser.id);
+}
+
+// ── SYNC STATUS BADGE ─────────────────────────────────────────────────────────
+function setSyncStatus(state) {
+  const el = document.getElementById('syncStatus');
+  const map = {
+    saving:  ['saving',  '↑ GUARDANDO...'],
+    synced:  ['synced',  '✓ SINCRONIZADO'],
+    offline: ['offline', '○ SIN CONEXIÓN'],
+  };
+  const [cls, txt] = map[state] || ['offline',''];
+  el.innerHTML = `<div class="sync-badge ${cls}">${txt}</div>`;
+  if (state === 'synced') setTimeout(()=>{ el.innerHTML=''; }, 3000);
+}
+
+// ── ENTER key support on auth inputs ─────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const overlay = document.getElementById('authOverlay');
+  if (overlay.style.display === 'none') return;
+  if (document.getElementById('formLogin').style.display !== 'none') doLogin();
+  else doRegister();
+});
 let pendingFiles=[];
 
 document.getElementById('fileInput').addEventListener('change',e=>{
   pendingFiles=Array.from(e.target.files);
-  document.getElementById('analyzeBtn').disabled=pendingFiles.length===0;
-  document.getElementById('analyzeBtn').textContent=`ANALIZAR ${pendingFiles.length} ARCHIVO${pendingFiles.length>1?'S':''} →`;
+  const btn=document.getElementById('analyzeBtn');
+  btn.disabled=pendingFiles.length===0;
+  btn.textContent=`ANALIZAR ${pendingFiles.length} ARCHIVO${pendingFiles.length>1?'S':''} →`;
 });
 
 const dropZone=document.getElementById('dropZone');
@@ -1438,8 +2024,9 @@ dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
 dropZone.addEventListener('drop',e=>{
   e.preventDefault(); dropZone.classList.remove('drag');
   pendingFiles=Array.from(e.dataTransfer.files);
-  document.getElementById('analyzeBtn').disabled=false;
-  document.getElementById('analyzeBtn').textContent=`ANALIZAR ${pendingFiles.length} ARCHIVO${pendingFiles.length>1?'S':''} →`;
+  const btn=document.getElementById('analyzeBtn');
+  btn.disabled=false;
+  btn.textContent=`ANALIZAR ${pendingFiles.length} ARCHIVO${pendingFiles.length>1?'S':''} →`;
 });
 
 async function runAnalysis() {
@@ -1451,25 +2038,23 @@ async function runAnalysis() {
 
   await new Promise(r=>setTimeout(r,500));
 
-  const allRecords=[];
-  const fileNames=[];
+  const allRecords=[], fileNames=[];
   let sessions=0;
-  let isDemo=false;
 
-  if(pendingFiles.length>0) {
-    for(const file of pendingFiles) {
+  if(pendingFiles.length>0){
+    for(const file of pendingFiles){
       fileNames.push(file.name);
       try {
         const buf=await file.arrayBuffer();
         let records=[];
-        if(file.name.toLowerCase().endsWith('.fit')) {
+        if(file.name.toLowerCase().endsWith('.fit')){
           records=new FITParser(buf).parse();
-        } else if(file.name.toLowerCase().endsWith('.csv')) {
+        } else if(file.name.toLowerCase().endsWith('.csv')){
           const text=new TextDecoder().decode(buf);
           const lines=text.split('\n');
           const header=lines[0].toLowerCase().split(',');
           const pi=header.findIndex(h=>h.includes('power')||h.includes('potencia')||h==='watts');
-          if(pi>=0) {
+          if(pi>=0){
             for(let i=1;i<lines.length;i++){
               const p=parseFloat(lines[i].split(',')[pi]);
               if(!isNaN(p)&&p>=0) records.push({power:p});
@@ -1484,26 +2069,28 @@ async function runAnalysis() {
   if(allRecords.length<100){
     allRecords.push(...demoData());
     fileNames.push('[DEMO — sube tu .FIT real]');
-    sessions=1; isDemo=true;
+    sessions=1;
   }
 
   const result=analyze(allRecords,weight);
   document.getElementById('loading').style.display='none';
 
   if(result){
-    Object.assign(state,result,{weight,sessions,fileNames,hrs:result.hrs,analyzed:true});
-
-    // Save to history
+    Object.assign(state,result,{weight,sessions,fileNames,analyzed:true});
     const now=new Date();
     const dateStr=now.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});
-    ftpHistory.push({
-      date:dateStr,
-      ftp:result.ftp,
-      wkg:result.wkg,
-      weight:weight,
-      files:fileNames.join(', '),
-    });
 
+    // Save to Supabase (and get back the row id)
+    const savedRow = await saveFtpEntry(result, weight, fileNames, sessions);
+
+    ftpHistory.push({
+      id:     savedRow?.id,
+      date:   dateStr,
+      ftp:    result.ftp,
+      wkg:    result.wkg,
+      weight,
+      files:  fileNames.join(', '),
+    });
     renderDashboard();
     showPage('dashboard');
   }
